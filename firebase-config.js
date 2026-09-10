@@ -1,9 +1,8 @@
 /* Konfiguration des Firebase-Projekts für den Geräte-Sync.
  *
- * NOCH NICHT AUSGEFÜLLT — eigenes, von "MinMax Workout" komplett getrenntes
- * Firebase-Projekt anlegen (console.firebase.google.com), dann unten die
- * Werte aus Projekteinstellungen → „Meine Apps“ → „Konfiguration“ eintragen.
- * Bis dahin läuft die App normal, nur ohne Geräte-Sync (rein lokal).
+ * Firebase Console → Einstellungen → Projekteinstellungen → „Meine Apps“ →
+ * bei der Web-App unter „SDK-Einrichtung und -Konfiguration“ auf
+ * „Konfiguration“ umschalten. Das dort gezeigte Objekt steht hier.
  *
  * Alternativ lässt sich die Konfiguration direkt in der App einfügen
  * (Sync-Button oben rechts) — dann gilt sie nur auf dem jeweiligen Gerät.
@@ -13,10 +12,10 @@
  * Firestore-Regeln (firestore.rules) und der Liste der autorisierten Domains.
  */
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAr•••••••••••••••••••••••••••••••",
+  authDomain: "julias-trainingsplan.firebaseapp.com",
+  projectId: "julias-trainingsplan",
+  storageBucket: "julias-trainingsplan.firebasestorage.app",
+  messagingSenderId: "622992001179",
+  appId: "1:622992001179:web:2846c2455823eda34fde3e"
 };
