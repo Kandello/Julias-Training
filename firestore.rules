@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Firebase Console → Firestore Database → Rules → hier einfügen → Veröffentlichen.
+//
+// Jede angemeldete Person sieht ausschliesslich ihre eigenen Trainingsdaten.
+// Ohne Anmeldung ist kein Zugriff möglich.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId}/sessions/{sessionId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.data.date is string
+                   && request.resource.data.dayId is string
+                   && request.resource.data.entries is map;
+    }
+
+    // Angepasster Trainingsplan: getauschte Übungen und ihre Reihenfolge.
+    match /users/{userId}/state/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,3623 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MinMax Workout — Trainingsdokumentation</title>
+<meta name="description" content="Trainingsdokumentation: Gewichte erfassen, Tendenz festlegen, Fortschritt verfolgen.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="theme-color" content="#f9f9f7">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb;
+  --plane:#f9f9f7;
+  --sunken:#f1f0ec;
+  --text-1:#0b0b0b;
+  --text-2:#52514e;
+  --muted:#898781;
+  --grid:#e1e0d9;
+  --axis:#c3c2b7;
+  --border:rgba(11,11,11,0.10);
+  --ring:rgba(11,11,11,0.16);
+
+  --good:#0ca30c;
+  --good-text:#006300;
+  --critical:#d03b3b;
+  --hold:#2a78d6;
+  --warning:#c98500;
+  /* Vorschlagswert: dunkler als das UI-Blau, damit die Zahl als Normaltext
+     lesbar bleibt (5,39:1 statt 4,19:1 auf hellem Grund). */
+  --suggest:#1f66bd;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+
+  --r-sm:8px; --r-md:12px; --r-lg:16px;
+  --tap:44px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--plane);
+  color:var(--text-1);
+  font:400 16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  overscroll-behavior-y:contain;
+}
+h1,h2,h3,p{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--hold);outline-offset:2px;border-radius:4px}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- Header ---------- */
+.app-header{
+  position:sticky;top:0;z-index:20;
+  display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top) + 12px) 12px 10px 16px;
+  background:color-mix(in srgb, var(--plane) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.plan-bar{
+  flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.plan-bar::-webkit-scrollbar{display:none}
+.plan-btn{
+  flex:0 0 auto;max-width:96px;min-height:32px;padding:0 12px;
+  border-radius:999px;border:1px solid transparent;
+  background:var(--sunken);color:var(--text-2);
+  font-size:11.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:background .12s,color .12s;
+}
+.plan-btn:hover,.plan-btn:focus-visible{border-color:var(--ring)}
+/* Aktiver Plan: gleiche "gefüllt = ausgewählt"-Sprache wie .btn-line.primary. */
+.plan-btn.is-active{background:var(--text-1);color:var(--plane)}
+.plan-btn-new{
+  flex:0 0 auto;width:32px;height:32px;display:grid;place-items:center;
+  border-radius:999px;border:1.5px dashed var(--border);color:var(--muted);
+}
+.plan-btn-new svg{width:16px;height:16px}
+.plan-btn-new:hover,.plan-btn-new:focus-visible{background:var(--sunken);color:var(--text-1);border-color:var(--ring)}
+.plan-btn-new:active{transform:scale(.94)}
+
+.sync-chip{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+  min-height:32px;padding:0 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface-1);
+  font-size:12px;font-weight:600;color:var(--text-2);max-width:96px;
+}
+.sync-chip .sync-dot{
+  width:8px;height:8px;border-radius:999px;flex:0 0 auto;
+  background:var(--muted);
+}
+.sync-chip .sync-dot.ok{background:var(--good)}
+.sync-chip .sync-dot.pending{background:var(--warning)}
+.sync-chip .sync-dot.err{background:var(--critical)}
+.sync-chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.swap-label{font-size:12px;font-weight:600;color:var(--text-2);margin:0 2px -4px}
+.swap-input{
+  width:100%;min-height:var(--tap);padding:0 34px 0 12px;
+  border:1.5px solid var(--border);border-radius:var(--r-md);
+  background:var(--plane);color:var(--text-1);
+  font:600 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.swap-input::placeholder{font-weight:400;color:var(--muted)}
+.swap-input::-webkit-calendar-picker-indicator{opacity:.45}
+.swap-input:focus{outline:none;border-color:var(--hold);background:var(--surface-1)}
+
+.dlg-actions{display:flex;gap:8px;margin-top:14px}
+.dlg-actions .btn-line{flex:1 1 0}
+.btn-line.danger{background:var(--critical);color:#fff;border-color:var(--critical)}
+/* Zurückhaltend, weil die eigentliche Warnung im Bestätigungsdialog steht. */
+.btn-line.danger-ghost{
+  background:transparent;color:var(--critical);
+  border-color:color-mix(in srgb, var(--critical) 45%, transparent);
+}
+.btn-line.danger-ghost:hover,.btn-line.danger-ghost:focus-visible{
+  background:color-mix(in srgb, var(--critical) 10%, transparent);
+}
+
+/* Ausreisser-Liste in der Sicherheitsabfrage */
+.odd-list{display:flex;flex-direction:column;gap:6px}
+.odd{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px;border-radius:var(--r-sm);background:var(--sunken);
+  font-size:13px;
+}
+.odd-name{flex:1 1 120px;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.odd-jump{
+  flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--text-2);
+  display:inline-flex;align-items:center;gap:5px;
+}
+.odd-pct{
+  flex:0 0 auto;padding:1px 6px;border-radius:999px;
+  background:color-mix(in srgb, var(--warning) 26%, transparent);
+  font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+}
+
+/* Antippbare Zahlen für Sätze und Wiederholungen */
+.spec-chip{
+  flex:0 0 auto;display:inline-flex;align-items:baseline;gap:3px;
+  min-height:26px;padding:2px 8px;border-radius:999px;
+  background:var(--sunken);color:var(--text-2);
+  font-size:11.5px;font-weight:600;white-space:nowrap;
+  border:1px solid transparent;transition:border-color .12s,background .12s;
+}
+.spec-chip strong{font-size:12.5px;font-weight:750;color:var(--text-1);font-variant-numeric:tabular-nums}
+.spec-chip:hover,.spec-chip:focus-visible{border-color:var(--ring)}
+.spec-chip:active{transform:scale(.96)}
+
+dialog#spec-dialog{width:min(320px, calc(100vw - 32px));margin-top:12vh}
+dialog#spec-dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog#spec-dialog .dlg-inner{padding:16px}
+.spec-fields{display:flex;align-items:flex-end;gap:10px;margin-top:12px}
+.spec-f{flex:1 1 0;min-width:0}
+.spec-f span{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:0 2px 4px}
+.spec-f input{
+  width:100%;min-height:48px;padding:0 12px;text-align:center;
+  border:1.5px solid var(--border);border-radius:var(--r-md);
+  background:var(--plane);color:var(--text-1);
+  font:700 20px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+.spec-f input:focus{outline:none;border-color:var(--hold);background:var(--surface-1)}
+.spec-dash{flex:0 0 auto;padding-bottom:13px;color:var(--muted);font-weight:700}
+
+dialog#confirm-dialog,
+dialog#swap-dialog,
+dialog#fillslot-dialog,
+dialog#newplan-dialog,
+dialog#sync-dialog{
+  width:min(440px, calc(100vw - 24px));
+  padding:0;border:1px solid var(--border);border-radius:var(--r-lg);
+  background:var(--surface-1);color:var(--text-1);
+  box-shadow:0 20px 60px rgba(0,0,0,.28);
+}
+dialog#confirm-dialog::backdrop,
+dialog#swap-dialog::backdrop,
+dialog#fillslot-dialog::backdrop,
+dialog#newplan-dialog::backdrop,
+dialog#sync-dialog::backdrop{background:rgba(0,0,0,.5)}
+.dlg-inner{padding:18px 16px 16px}
+.dlg-inner h2{font-size:17px;font-weight:650;letter-spacing:-0.01em}
+.dlg-lead{margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.5}
+.dlg-body{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.dlg-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px}
+.dlg-row dt{color:var(--muted)}
+.dlg-row dd{margin:0;font-weight:600;text-align:right;overflow-wrap:anywhere}
+.btn-line{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:46px;border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--plane);
+  font-size:14px;font-weight:600;color:var(--text-1);
+}
+.btn-line.primary{background:var(--text-1);color:var(--plane);border-color:var(--text-1)}
+.btn-line:disabled{opacity:.5;cursor:default}
+.dlg-note{font-size:12px;color:var(--muted);line-height:1.5}
+
+/* Einrichtungs-Anleitung im Sync-Dialog */
+.guide{display:flex;flex-direction:column;gap:2px;max-height:46vh;overflow-y:auto;
+  margin:0 -4px;padding:0 4px;-webkit-overflow-scrolling:touch}
+.guide-step{border-bottom:1px solid var(--border)}
+.guide-step:last-of-type{border-bottom:0}
+.guide-step summary{
+  display:flex;align-items:center;gap:8px;min-height:38px;
+  cursor:pointer;list-style:none;font-size:13px;font-weight:600;
+}
+.guide-step summary::-webkit-details-marker{display:none}
+.guide-num{
+  flex:0 0 auto;width:20px;height:20px;display:grid;place-items:center;
+  border-radius:999px;background:var(--sunken);color:var(--text-2);
+  font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+}
+.guide-t{flex:1 1 auto;min-width:0}
+.guide-step summary::after{
+  content:"";flex:0 0 auto;width:0;height:0;
+  border:4px solid transparent;border-top-color:var(--muted);margin-top:3px;
+  transition:transform .15s;
+}
+.guide-step[open] summary::after{transform:rotate(180deg);margin-top:-3px}
+.guide-step ul{margin:0 0 10px;padding-left:30px}
+.guide-step li{font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:4px;overflow-wrap:anywhere}
+.dlg-note code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+  background:var(--sunken);padding:1px 4px;border-radius:4px;
+}
+.dlg-note ol{margin:6px 0 0;padding-left:18px}
+.dlg-note li{margin-bottom:3px}
+dialog textarea{
+  width:100%;min-height:132px;padding:9px 10px;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--plane);color:var(--text-1);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.45;
+  resize:vertical;
+}
+.dlg-err{
+  font-size:12.5px;color:var(--text-1);line-height:1.45;
+  background:color-mix(in srgb, var(--critical) 12%, transparent);
+  border:1px solid color-mix(in srgb, var(--critical) 40%, transparent);
+  border-radius:var(--r-sm);padding:8px 10px;
+}
+
+/* ---------- Layout ---------- */
+main{padding:14px 12px calc(env(safe-area-inset-bottom) + 88px);max-width:720px;margin:0 auto}
+.view{display:none}
+.view.is-active{display:block;animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.view.is-active{animation:none}}
+
+.day-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:2px 2px 12px}
+.day-head h2{font-size:22px;font-weight:650;letter-spacing:-0.02em}
+.day-head .day-meta{font-size:12px;color:var(--muted);text-align:right;flex:0 0 auto}
+
+.prefill{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;min-height:40px;margin-bottom:12px;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface-1);
+  font-size:13.5px;font-weight:550;color:var(--text-2);
+}
+.prefill:disabled{opacity:.45;cursor:default}
+.prefill svg{width:15px;height:15px;flex:0 0 auto}
+
+/* ---------- Exercise card ---------- */
+.ex-list{display:flex;flex-direction:column;gap:10px}
+.ex{
+  background:var(--surface-1);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:12px 12px 11px;
+}
+.ex-head{display:flex;align-items:flex-start;gap:8px}
+.ex-swap{
+  flex:0 0 auto;width:34px;height:34px;margin:-6px -5px -6px 0;
+  display:grid;place-items:center;border-radius:9px;color:var(--muted);
+  transition:background .12s,color .12s;
+}
+.ex-swap svg{width:17px;height:17px}
+.ex-swap:hover,.ex-swap:focus-visible{background:var(--sunken);color:var(--text-1)}
+.ex-swap:active{transform:scale(.94)}
+
+/* Leerer Slot eines selbst angelegten Plans: nur Ziffer + grosses Plus. */
+.ex.ex-empty{display:flex;align-items:center;gap:10px;border-style:dashed}
+.ex-empty-add{
+  flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+  min-height:44px;border-radius:var(--r-md);color:var(--muted);
+  transition:background .12s,color .12s;
+}
+.ex-empty-add svg{width:26px;height:26px}
+.ex-empty-add:hover,.ex-empty-add:focus-visible{background:var(--sunken);color:var(--text-1)}
+.ex-empty-add:active{transform:scale(.96)}
+
+/* Neue Übung an ein Tagesende anhängen — nur bei selbst angelegten Plänen. */
+.ex-add-slot{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  min-height:44px;border-radius:var(--r-lg);
+  border:1.5px dashed var(--border);color:var(--muted);
+  font-size:13px;font-weight:600;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.ex-add-slot svg{width:18px;height:18px}
+.ex-add-slot:hover,.ex-add-slot:focus-visible{background:var(--sunken);color:var(--text-1);border-color:var(--ring)}
+.ex-add-slot:active{transform:scale(.98)}
+.ex-idx{position:relative;flex:0 0 auto;width:21px;height:21px;margin-top:1px}
+.idx-dot{
+  width:21px;height:21px;
+  display:grid;place-items:center;border-radius:999px;
+  background:var(--sunken);color:var(--muted);
+  font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;
+  pointer-events:none;
+  transition:background .12s,color .12s,transform .12s;
+}
+/* Unsichtbarer Anfasser, deutlich grösser als die Ziffer — beeinflusst
+   das Layout nicht, weil er absolut über ihr sitzt. */
+.ex-idx-hit{
+  position:absolute;left:50%;top:50%;
+  width:44px;height:44px;transform:translate(-50%,-50%);
+  border-radius:999px;background:transparent;
+  cursor:grab;-webkit-tap-highlight-color:transparent;
+  /* touch-action:none steht von Anfang an fest, nicht erst wenn der Zug
+     nach der Haltezeit losgeht: der Browser legt pro Touch-Sequenz schon
+     beim ersten Kontakt fest, ob sie fürs native Scrollen infrage kommt,
+     und hält sich später nicht mehr an eine per JS geänderte Regel.
+     Würde touch-action erst nach Ablauf der Haltezeit auf "none" gesetzt,
+     hätte Chrome auf echten Touchscreens die Bewegung längst als Scroll
+     erkannt und schickt beim ersten tatsächlichen Zug ein pointercancel —
+     die Karte hebt sich sichtbar an, lässt sich danach aber nicht mehr
+     bewegen. Der Anfasser ist klein genug, dass ein zufällig hier
+     startender Wisch zum Scrollen kaum vorkommt. */
+  touch-action:none;
+}
+.ex-idx-hit:active{cursor:grabbing}
+.ex-idx-hit:hover,.ex-idx-hit:focus-visible{background:color-mix(in srgb, var(--muted) 14%, transparent)}
+
+/* Während des Ziehens: Karte schwebt sichtbar über den anderen. */
+.ex.is-dragging{position:relative;z-index:5;box-shadow:0 14px 30px rgba(0,0,0,.20);transition:none}
+/* #1f66bd statt var(--hold): Weiss darauf kommt auf 5,69:1 — var(--hold)
+   käme je nach Modus nur auf 4,42:1 bzw. 3,64:1, zu wenig für Normaltext. */
+.ex.is-dragging .idx-dot{background:#1f66bd;color:#fff;transform:scale(1.15)}
+/* Nur während einer aktiven Ziehbewegung animieren die verdrängten
+   Nachbarn ihren Platzwechsel — sonst bleibt transform ungebremst. */
+.ex-list.is-reordering > .ex:not(.is-dragging){transition:transform 180ms cubic-bezier(.2,.8,.2,1)}
+body.is-reordering{-webkit-user-select:none;user-select:none}
+.ex-name{flex:1 1 auto;font-size:15.5px;font-weight:600;line-height:1.25;letter-spacing:-0.01em;min-width:0;overflow-wrap:anywhere}
+
+.ex-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:7px 0 0 29px;min-width:0}
+.ex-plan{margin:0;font-size:12px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+
+/* Eine Spalte: oben die Gewichtseingabe (mit Miniverlauf daneben),
+   darunter der Schalter — beide am selben linken Rand. */
+.ex-body{display:flex;flex-direction:column;align-items:flex-start;gap:9px;margin-top:10px}
+.ex-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%}
+.wfield{
+  flex:0 0 auto;display:flex;align-items:center;gap:5px;
+  width:126px;height:var(--tap);padding:0 10px 0 12px;
+  border:1.5px solid var(--border);border-radius:var(--r-md);
+  background:var(--plane);
+  transition:border-color .12s,background .12s;
+}
+.wfield:focus-within{border-color:var(--hold);background:var(--surface-1)}
+.wfield.has-val{border-color:var(--ring)}
+.wfield input{
+  width:100%;min-width:0;border:0;padding:0;background:none;color:var(--text-1);
+  font:600 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+.wfield input:focus{outline:none}
+.wfield input::placeholder{color:var(--muted);font-weight:500}
+.wfield .unit{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--muted)}
+/* Bodyweight-Übungen: "+" vor der Zahl macht sofort klar, dass es sich um
+   Zusatzgewicht zum Körpergewicht handelt, nicht ums Gesamtgewicht. */
+.wfield .wfield-prefix{flex:0 0 auto;font-size:16px;font-weight:600;color:var(--muted)}
+
+/* Blau = Vorschlag aus „Letzte Gewichte übernehmen", noch nicht bestätigt.
+   Grün = Übung als absolviert bestätigt. */
+.wfield.is-sug  input{color:var(--suggest)}
+.wfield.is-sug  .unit,.wfield.is-sug  .wfield-prefix{color:var(--suggest);opacity:.75}
+.wfield.is-done input{color:var(--good-text)}
+.wfield.is-done .unit,.wfield.is-done .wfield-prefix{color:var(--good-text);opacity:.75}
+.wfield.is-done{border-color:color-mix(in srgb, var(--good) 55%, transparent)}
+
+.ex-check{
+  flex:0 0 auto;width:44px;height:44px;border-radius:var(--r-md);
+  display:grid;place-items:center;color:var(--muted);
+  border:1.5px solid var(--border);background:var(--plane);
+  transition:background .12s,border-color .12s,color .12s;
+}
+/* display:grid oben schlägt sonst das [hidden] des Browsers */
+.ex-check[hidden]{display:none}
+.ex-check svg{width:20px;height:20px}
+.ex-check:active{transform:scale(.95)}
+.ex-check[aria-pressed="true"]{
+  background:color-mix(in srgb, var(--good) 15%, transparent);
+  border-color:var(--good);
+  color:var(--good-text);
+}
+
+/* ---------- Mini history ---------- */
+/* Verlauf der letzten Trainings, direkt unter dem Übungsnamen */
+.hist{
+  display:flex;align-items:center;gap:8px;
+  margin:5px 0 0 29px;min-width:0;overflow:hidden;white-space:nowrap;
+}
+.hist-empty{font-size:11.5px;color:var(--muted);font-style:italic}
+.spark{flex:0 0 auto;display:block;overflow:visible}
+.hist-vals{display:flex;align-items:baseline;gap:10px;flex-wrap:nowrap}
+.hitem{display:inline-flex;align-items:baseline;gap:4px}
+.hdate{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hkg{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hitem-last .hkg{font-weight:700;color:var(--text-1)}
+.delta{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;
+  padding:1px 5px;border-radius:999px;background:var(--sunken);
+  font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--text-2);
+}
+.delta .gly{font-size:9px;line-height:1}
+.delta.up .gly{color:var(--good-text)}
+.delta.down .gly{color:var(--critical)}
+.delta.flat .gly{color:var(--hold)}
+
+/* ---------- Segmented 3-way ---------- */
+/* Schmale Leiste direkt unter der Gewichtseingabe — nur so breit wie nötig. */
+.seg{
+  display:flex;gap:3px;width:fit-content;max-width:100%;
+  padding:3px;
+  background:var(--sunken);border-radius:10px;
+}
+.seg button{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:34px;padding:0 7px;border-radius:8px;white-space:nowrap;
+  font-size:10.5px;font-weight:600;color:var(--text-2);
+  border:1.5px solid transparent;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.seg button .gly{font-size:10px;line-height:1;transition:transform .12s}
+.seg button[data-t="down"] .gly{color:var(--critical)}
+.seg button[data-t="hold"] .gly{color:var(--hold)}
+.seg button[data-t="up"]   .gly{color:var(--good)}
+.seg button[aria-checked="true"]{background:var(--surface-1);color:var(--text-1);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.seg button[aria-checked="true"][data-t="down"]{border-color:var(--critical)}
+.seg button[aria-checked="true"][data-t="hold"]{border-color:var(--hold)}
+.seg button[aria-checked="true"][data-t="up"]{border-color:var(--good)}
+.seg button[aria-checked="true"] .gly{transform:scale(1.15)}
+
+/* ---------- Save ---------- */
+.save-bar{margin-top:16px}
+.save-row{display:flex;gap:8px}
+.btn-confirm-all{
+  flex:0 0 22%;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-height:52px;border-radius:var(--r-lg);
+  /* Dasselbe Blau wie die unbestätigten Zahlen — Weiss darauf 5,69:1 */
+  background:#1f66bd;color:#fff;
+  font-size:11px;font-weight:650;letter-spacing:-0.01em;
+}
+.btn-confirm-all svg{width:19px;height:19px}
+.btn-confirm-all:active{transform:scale(.98)}
+.btn-confirm-all:disabled{opacity:.35;cursor:default;transform:none}
+.btn-primary{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  flex:1 1 auto;min-width:0;min-height:52px;border-radius:var(--r-lg);
+  background:var(--text-1);color:var(--plane);
+  font-size:16px;font-weight:650;letter-spacing:-0.01em;
+}
+.btn-primary:active{transform:scale(.99)}
+.btn-primary:disabled{opacity:.4;cursor:default;transform:none}
+.save-hint{margin-top:7px;text-align:center;font-size:12px;color:var(--muted)}
+
+/* ---------- Progress ---------- */
+.picker{margin-bottom:12px}
+.picker label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin:0 2px 5px}
+.picker select{
+  width:100%;min-height:var(--tap);padding:0 34px 0 12px;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface-1);color:var(--text-1);
+  font:550 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23898781' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:13px;
+}
+.card{
+  background:var(--surface-1);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:14px 12px 12px;
+}
+.card-head{margin:0 2px 10px}
+.card-head h3{font-size:15px;font-weight:650;letter-spacing:-0.01em}
+.card-head p{font-size:12px;color:var(--muted);margin-top:2px}
+.chart-wrap{position:relative;touch-action:pan-y}
+.chart-wrap svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.tip{
+  position:absolute;z-index:5;pointer-events:none;opacity:0;
+  transform:translate(-50%,-100%);
+  min-width:118px;max-width:190px;padding:8px 9px;
+  background:var(--surface-1);border:1px solid var(--ring);border-radius:10px;
+  box-shadow:0 6px 20px rgba(0,0,0,.14);
+  font-size:12px;transition:opacity .1s;
+}
+.tip.on{opacity:1}
+.tip-date{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px;font-variant-numeric:tabular-nums}
+.tip-row{display:flex;align-items:baseline;gap:6px;margin-top:3px}
+.tip-key{flex:0 0 auto;width:12px;height:2px;border-radius:2px;align-self:center}
+.tip-val{flex:0 0 auto;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums}
+.tip-name{flex:1 1 auto;min-width:0;color:var(--text-2);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.legend{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}
+.legend button{
+  display:inline-flex;align-items:center;gap:6px;
+  min-height:32px;padding:0 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--plane);
+  font-size:12px;font-weight:550;color:var(--text-2);
+}
+.legend button .lkey{width:14px;height:2px;border-radius:2px;flex:0 0 auto}
+.legend button[aria-pressed="false"]{opacity:.42}
+.legend button[aria-pressed="false"] .lkey{background:var(--muted)!important}
+
+details.table-view{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+details.table-view summary{
+  display:flex;align-items:center;gap:6px;min-height:32px;
+  font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer;list-style:none;
+}
+details.table-view summary::-webkit-details-marker{display:none}
+details.table-view summary::before{
+  content:"";width:0;height:0;border:4.5px solid transparent;border-left-color:var(--muted);
+  transition:transform .15s;transform-origin:2px 50%;
+}
+details.table-view[open] summary::before{transform:rotate(90deg)}
+.table-scroll{overflow-x:auto;margin-top:8px;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;min-width:100%}
+th,td{padding:6px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface-1)}
+thead th{font-weight:650;color:var(--text-2);font-size:11.5px}
+tbody td{color:var(--text-1)}
+tbody td.na{color:var(--muted)}
+.empty-note{margin-top:10px;font-size:12.5px;color:var(--muted);text-align:center}
+
+/* ---------- Trainings-Log ---------- */
+.log-card{margin-top:12px}
+.log-item{border-top:1px solid var(--border)}
+.log-item:first-of-type{border-top:0}
+.log-item summary{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  min-height:46px;padding:4px 2px;cursor:pointer;list-style:none;
+}
+.log-item summary::-webkit-details-marker{display:none}
+.log-item summary::before{
+  content:"";flex:0 0 auto;width:0;height:0;
+  border:4.5px solid transparent;border-left-color:var(--muted);
+  transition:transform .15s;transform-origin:2px 50%;
+}
+.log-item[open] summary::before{transform:rotate(90deg)}
+.log-date{flex:0 0 auto;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.log-day{flex:1 1 auto;min-width:0;font-size:13px;color:var(--text-2);overflow-wrap:anywhere}
+.log-count{flex:0 0 auto;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.log-rows{padding:2px 0 12px 14px;display:flex;flex-direction:column;gap:6px}
+.log-row{display:flex;align-items:center;gap:8px}
+.log-ex{flex:1 1 auto;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.log-field{
+  flex:0 0 auto;display:flex;align-items:center;gap:4px;
+  width:96px;height:38px;padding:0 8px 0 10px;
+  border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--plane);
+}
+.log-field:focus-within{border-color:var(--hold);background:var(--surface-1)}
+.log-field input{
+  width:100%;min-width:0;border:0;padding:0;background:none;color:var(--text-1);
+  font:600 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;
+}
+.log-field input:focus{outline:none}
+.log-field .log-unit{flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--muted)}
+.log-trend{flex:0 0 auto;width:14px;text-align:center;font-size:10px}
+.log-trend.up{color:var(--good)}
+.log-trend.down{color:var(--critical)}
+.log-trend.hold{color:var(--hold)}
+.log-trend.none{color:var(--muted)}
+.log-del{
+  flex:0 0 auto;width:34px;height:34px;border-radius:8px;
+  display:grid;place-items:center;color:var(--muted);
+  font-size:19px;line-height:1;
+}
+.log-del:hover,.log-del:focus-visible{background:var(--sunken);color:var(--critical)}
+.log-wipe{margin-top:8px;min-height:38px;font-size:13px}
+
+.data-tools{margin-top:14px;display:flex;gap:8px}
+.data-tools button{
+  flex:1 1 0;min-height:42px;border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--surface-1);
+  font-size:13px;font-weight:600;color:var(--text-2);
+}
+.tools-hint{margin-top:7px;font-size:11.5px;color:var(--muted);text-align:center}
+
+/* ---------- Tab bar ---------- */
+/* Flex statt eines fest auf 5 Spalten kodierten Grids: MinMax hat immer
+   4 Tage + Fortschritt = 5 Tabs, aber ein selbst angelegter Plan kann bis zu
+   zehn Trainingstage haben (+ Fortschritt) — ein festes 5-Spalten-Grid würde
+   ab dem sechsten Tab zweizeilig umbrechen. flex:1 1 0 verteilt die Breite
+   gleichmässig auf jede tatsächliche Tab-Zahl, genau wie bei 5 Tabs zuvor. */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  display:flex;
+  padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
+  background:color-mix(in srgb, var(--plane) 92%, transparent);
+  backdrop-filter:saturate(1.4) blur(12px);
+  border-top:1px solid var(--border);
+}
+.tabbar button{
+  flex:1 1 0;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-height:50px;border-radius:10px;
+  font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:-0.01em;
+}
+.tabbar button svg{width:21px;height:21px;stroke-width:1.7}
+.tabbar button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tabbar button[aria-selected="true"]{color:var(--text-1)}
+.tabbar button[aria-selected="true"] svg{stroke-width:2.2}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 82px);
+  transform:translate(-50%,10px);z-index:40;
+  max-width:calc(100vw - 32px);
+  padding:11px 16px;border-radius:999px;
+  background:var(--text-1);color:var(--plane);
+  font-size:13.5px;font-weight:600;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (min-width:520px){
+  main{padding-left:16px;padding-right:16px}
+  .ex-line{gap:14px}
+  .wfield{width:150px}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <nav class="plan-bar" id="plan-bar" aria-label="Trainingsplan wählen"></nav>
+  <button class="sync-chip" id="sync-chip" type="button" aria-haspopup="dialog">
+    <span class="sync-dot" id="sync-dot"></span>
+    <span id="sync-label">Sync</span>
+  </button>
+</header>
+
+<main id="main"></main>
+
+<nav class="tabbar" role="tablist" aria-label="Trainingstage"></nav>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-dlg-title">
+  <div class="dlg-inner">
+    <h2 id="confirm-dlg-title"></h2>
+    <p class="dlg-lead" id="confirm-dlg-lead"></p>
+    <div class="dlg-body" id="confirm-dlg-body"></div>
+    <div class="dlg-actions">
+      <button class="btn-line" type="button" id="confirm-no">Abbrechen</button>
+      <button class="btn-line primary" type="button" id="confirm-yes">OK</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="spec-dialog" class="dlg-compact" aria-labelledby="spec-dlg-title">
+  <form method="dialog" class="dlg-inner" id="spec-form">
+    <h2 id="spec-dlg-title"></h2>
+    <p class="dlg-lead" id="spec-dlg-lead"></p>
+    <div class="spec-fields" id="spec-fields"></div>
+    <p class="dlg-note" id="spec-hint"></p>
+  </form>
+</dialog>
+
+<dialog id="swap-dialog" aria-labelledby="swap-dlg-title">
+  <div class="dlg-inner">
+    <h2 id="swap-dlg-title">Übung tauschen</h2>
+    <p class="dlg-lead" id="swap-dlg-lead"></p>
+    <div class="dlg-body" id="swap-dlg-body"></div>
+    <div style="margin-top:12px">
+      <button class="btn-line" type="button" id="swap-cancel">Abbrechen</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="newplan-dialog" aria-labelledby="newplan-dlg-title">
+  <div class="dlg-inner">
+    <h2 id="newplan-dlg-title">Neuer Trainingsplan</h2>
+    <p class="dlg-lead" id="newplan-dlg-lead"></p>
+    <div class="dlg-body" id="newplan-dlg-body"></div>
+  </div>
+</dialog>
+
+<dialog id="fillslot-dialog" aria-labelledby="fillslot-dlg-title">
+  <div class="dlg-inner">
+    <h2 id="fillslot-dlg-title">Übung hinzufügen</h2>
+    <p class="dlg-lead" id="fillslot-dlg-lead"></p>
+    <div class="dlg-body" id="fillslot-dlg-body"></div>
+  </div>
+</dialog>
+
+<dialog id="sync-dialog" aria-labelledby="sync-dlg-title">
+  <div class="dlg-inner">
+    <h2 id="sync-dlg-title">Geräte-Sync</h2>
+    <p class="dlg-lead" id="sync-dlg-lead"></p>
+    <div class="dlg-body" id="sync-dlg-body"></div>
+    <div style="margin-top:14px">
+      <button class="btn-line" type="button" id="sync-close">Schließen</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="firebase-config.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   1. Trainingsplan — Reihenfolge exakt wie im Plan
+   ============================================================ */
+const BASE_DAYS = [
+  { id:"total", name:"Total Body", short:"Total", ex:[
+    { id:"tb-lying-leg-curl",       n:"LyingLegCurl",         sets:2, rmin:6, rmax:8,  p:"55 kg" },
+    { id:"tb-any-squat",            n:"AnySquat",             sets:2, rmin:6, rmax:8,  p:"2×13,75 kg" },
+    { id:"tb-barbell-incline-press",n:"BarbellInclinePress",  sets:2, rmin:6, rmax:8,  p:"2×23,75 kg" },
+    { id:"tb-incline-db-y-raise",   n:"InclineDB Y-Raise",    sets:1, rmin:8, rmax:10, p:"9 kg" },
+    { id:"tb-pullups",              n:"PullUps",              sets:2, rmin:6, rmax:8,  p:"Körpergewicht", bodyweight:true },
+    { id:"tb-standing-calf-raise",  n:"StandingCalfRaise",    sets:1, rmin:6, rmax:8,  p:"2×70 kg" },
+    /* Id bleibt "ub-..." (von Upper Body hierher verschoben) — die id ist
+       der Schlüssel, unter dem der bisherige Verlauf in sessions/Firestore
+       liegt; ein neuer Name hätte diesen Verlauf abgeschnitten. */
+    { id:"ub-crunch-machine",       n:"CrunchMachine",        sets:2, rmin:6, rmax:8,  p:"60 kg" }
+  ]},
+  { id:"upper", name:"Upper Body", short:"Upper", ex:[
+    { id:"ub-close-grip-latzug",    n:"CloseGripLatzug",      sets:2, rmin:8, rmax:10, p:"90 kg" },
+    { id:"ub-smith-machine-shrug",  n:"SmithMachineShrug",    sets:2, rmin:6, rmax:8,  p:"100 kg" },
+    { id:"ub-chest-supported-tbar", n:"ChestSupported TbarRow",sets:2, rmin:8, rmax:10,p:"55 kg" },
+    { id:"ub-machine-chest-press",  n:"MachineChestPress",    sets:2, rmin:8, rmax:10, p:"95 kg" },
+    { id:"ub-high-cable-lat-raise", n:"HighCableLateralRaise",sets:2, rmin:8, rmax:10, p:"37 kg" },
+    { id:"ub-face-pulls",           n:"FacePulls",            sets:2, rmin:8, rmax:10, p:"" },
+    { id:"ub-1arm-reverse-pec-deck",n:"1ArmReversePecDeck",   sets:1, rmin:8, rmax:10, p:"50 kg" }
+  ]},
+  { id:"lower", name:"Lower Body", short:"Lower", ex:[
+    { id:"lb-kniebeugen",           n:"Kniebeugen",           sets:3, rmin:10, rmax:null,   p:"110 kg" },
+    { id:"lb-barbell-dl",           n:"Barbell DL",           sets:2, rmin:8, rmax:10, p:"100 kg" },
+    { id:"lb-hip-thrust",           n:"HipThrust",            sets:2, rmin:6, rmax:8,  p:"110 kg", planTrend:"up" },
+    { id:"lb-standing-calf-raise",  n:"StandingCalfRaise",    sets:2, rmin:8, rmax:10, p:"2×65 kg" },
+    { id:"lb-leg-extensions",       n:"LegExtensions",        sets:2, rmin:8, rmax:10, p:"90 kg" },
+    { id:"lb-leg-press",            n:"LegPress",             sets:1, rmin:6, rmax:8,  p:"189 kg", retired:true }
+  ]},
+  { id:"arms", name:"Arms & Delts", short:"Arms", ex:[
+    { id:"ad-bayesian-cable-curls", n:"BayesianCableCurls",   sets:2, rmin:6, rmax:8,  p:"109 kg" },
+    { id:"ad-oh-triceps",           n:"OH Triceps",           sets:2, rmin:8, rmax:10, p:"149 kg" },
+    { id:"ad-mod-zottman-curl",     n:"ModZottmanCurl",       sets:1, rmin:8, rmax:10, p:"22 kg" },
+    { id:"ad-db-wrist-curl",        n:"DBWristCurl",          sets:2, rmin:8, rmax:10, p:"12 kg", retired:true },
+    { id:"ad-db-wrist-extension",   n:"DBWristExtension",     sets:2, rmin:8, rmax:10, p:"9 kg", retired:true },
+    { id:"ad-cable-triceps-kickbk", n:"CableTricepsKickback", sets:2, rmin:8, rmax:10, p:"53 kg" },
+    { id:"ad-alternating-db-curl",  n:"AlternatingDBCurl",    sets:1, rmin:6, rmax:8,  p:"20 kg" },
+    { id:"ad-machine-lateral-raise",n:"MachineLateralRaise",  sets:2, rmin:8, rmax:10, p:"50 kg" }
+  ]}
+];
+
+const MINMAX_PLAN_ID = "minmax";
+
+/* POOL enthält jede je verwendete Übung über ALLE Trainingspläne hinweg —
+   auch getauschte und noch leere (nicht ausgefüllte) Slots —, damit ihr
+   Verlauf im Fortschritt erhalten bleibt. PLANS enthält jeden Plan mit
+   seinen Tagen (nur Name + Übungs-id-Reihenfolge, "base"); DAYS ist immer
+   nur der gerade AKTIVE Plan und wird bei jedem Planwechsel neu gesetzt.
+   Andere Pläne liegen in userPlans (Abschnitt 2); ihre Übungen selbst
+   liegen in customEx — genau wie bei getauschten MinMax-Übungen. Dadurch
+   funktionieren Tausch, Sätze/Wiederholungen ändern, Ziehen-Umordnen usw.
+   für jeden Plan automatisch mit, ohne eigenen Code je Feature. */
+var POOL = {};
+var PLANS = [];
+var DAYS = [];
+var activePlanId = MINMAX_PLAN_ID;
+var DAY_OF_EX = {};
+
+function mergeIntoPool(e, dayId, planId){
+  if(e.empty){ POOL[e.id] = { id:e.id, empty:true, dayId:dayId, planId:planId }; return; }
+  POOL[e.id] = { id:e.id, n:e.n, sets:e.sets, rmin:e.rmin, rmax:e.rmax,
+                 p:e.p, planTrend:e.planTrend || null, dayId:dayId, planId:planId,
+                 bodyweight: !!e.bodyweight, retired: !!e.retired };
+}
+
+/** Baut PLANS (MinMax + alle userPlans) und POOL für alle fest im Code
+    stehenden MinMax-Übungen neu. mergeCustomEx() mischt danach die
+    getauschten/eigenen/leeren Übungen aller Pläne dazu. */
+function buildPlansAndPool(){
+  POOL = {};
+  BASE_DAYS.forEach(function(d){
+    d.ex.forEach(function(e){ mergeIntoPool(e, d.id, MINMAX_PLAN_ID); });
+  });
+  PLANS = [{ id:MINMAX_PLAN_ID, name:"MinMax Workout", builtin:true, days:BASE_DAYS.map(function(d){
+    /* retired = aus dem Plan genommen. Die Übung bleibt im POOL, damit ihr
+       bisheriger Verlauf lesbar und im Fortschritt abrufbar bleibt — sie
+       steht nur nicht mehr im Trainingstag. */
+    return { id:d.id, name:d.name, short:d.short, base: d.ex.filter(function(e){ return !e.retired; }).map(function(e){ return e.id; }) };
+  }) }];
+  userPlans.forEach(function(p){
+    PLANS.push({ id:p.id, name:p.name, builtin:false, days:p.days.map(function(d){
+      return { id:d.id, name:d.name, short:d.name.slice(0, 6), base:d.base.slice() };
+    }) });
+  });
+}
+
+/** Mischt customEx (getauschte, eigene und leere Slot-Übungen, plan-
+    übergreifend) in POOL — dieselbe Stelle, die auch der MinMax-
+    Übungstausch seit je nutzt. */
+function mergeCustomEx(){
+  Object.keys(customEx).forEach(function(id){
+    var e = customEx[id];
+    if(e && (e.empty || (typeof e.n === "string" && e.n))) POOL[id] = e;
+  });
+}
+
+function planById(id){
+  for(var i=0;i<PLANS.length;i++) if(PLANS[i].id === id) return PLANS[i];
+  return null;
+}
+
+/** DAYS = die Tage des aktiven Plans, als eigene mutierbare Kopien — base
+    bleibt die ursprüngliche Slot-Zuordnung des Plans, ex wird von
+    applyPlan() aus base + planOrder gebildet. */
+function daysForActivePlan(){
+  var plan = planById(activePlanId) || PLANS[0];
+  activePlanId = plan.id;
+  return plan.days.map(function(d){
+    return { id:d.id, name:d.name, short:d.short, ex:[], base:d.base.slice(), planId:plan.id };
+  });
+}
+
+/** Baut PLANS/POOL/DAYS komplett neu — beim Start und immer, wenn sich
+    userPlans/customEx strukturell ändern (neuer Plan, neuer Slot,
+    eintreffender Sync, Planwechsel). */
+function rebuildPlanRegistry(){
+  buildPlansAndPool();
+  mergeCustomEx();
+  DAYS = daysForActivePlan();
+  applyPlan();
+}
+
+function dayById(id){
+  for(var i=0;i<DAYS.length;i++) if(DAYS[i].id === id) return DAYS[i];
+  return null;
+}
+
+/** Baut DAYS.ex aus dem gespeicherten Plan; fällt je Tag auf den Basisplan zurück. */
+function applyPlan(){
+  Object.keys(exSpec).forEach(function(id){
+    var o = exSpec[id], e = POOL[id];
+    if(!e || !o) return;
+    if(o.sets != null) e.sets = o.sets;
+    if(o.rmin != null) e.rmin = o.rmin;
+    e.rmax = o.rmax != null ? o.rmax : null;
+  });
+  DAY_OF_EX = {};
+  Object.keys(POOL).forEach(function(id){
+    var d = dayById(POOL[id].dayId);
+    if(d) DAY_OF_EX[id] = d;
+  });
+  DAYS.forEach(function(d){
+    var stored = Array.isArray(planOrder[d.id]) ? planOrder[d.id] : null;
+    var ids;
+    if(stored && stored.length){
+      /* Eine gespeicherte Reihenfolge zählt nur für Übungen, die laut POOL
+         aktuell wirklich zu diesem Tag gehören — das gilt genauso für
+         getauschte/eigene Übungen (per POOL[id].dayId), nicht nur für
+         Basis-Übungen. Verschiebt sich eine Basis-Übung im Code in einen
+         anderen Tag oder in den Ruhestand, darf eine ältere gespeicherte
+         Reihenfolge sie nicht mehr hier zeigen. Fehlende Plätze gegenüber
+         dem aktuellen Basisplan werden nur dann mit den fehlenden Basis-
+         Übungen aufgefüllt, wenn wirklich welche fehlen (Längenvergleich) —
+         sonst würde eine getauschte Übung neben ihrem eigenen, per Tausch
+         ersetzten Original auftauchen, weil das Original ja nicht mehr in
+         der gespeicherten Reihenfolge steht. */
+      ids = stored.filter(function(id){
+        var e = POOL[id];
+        return e && e.dayId === d.id && !e.retired;
+      });
+      if(ids.length < d.base.length){
+        d.base.forEach(function(id){ if(ids.indexOf(id) < 0) ids.push(id); });
+      }
+    } else {
+      ids = d.base;
+    }
+    d.ex = ids.map(function(id){ return POOL[id]; }).filter(Boolean);
+    d.ex.forEach(function(e){ DAY_OF_EX[e.id] = d; });
+  });
+}
+
+/** "6–8" bzw. "10" — Wiederholungsbereich als Text. */
+function repsText(ex){
+  if(ex.rmin == null) return "–";
+  return ex.rmax != null && ex.rmax !== ex.rmin ? ex.rmin + "–" + ex.rmax : String(ex.rmin);
+}
+/** "2×6–8" — kompakte Gesamtangabe, z. B. für Dialogtexte. */
+function specText(ex){
+  return (ex.sets != null ? ex.sets : "–") + "×" + repsText(ex);
+}
+
+/** Übungen mit Historie oder aus dem Basisplan des AKTIVEN Plans, die
+    aktuell in keinem seiner Tage stehen. Planübergreifend gefiltert —
+    sonst würden Übungen aus ganz anderen Trainingsplänen hier auftauchen. */
+function replacedExercises(){
+  var current = {};
+  DAYS.forEach(function(d){ d.ex.forEach(function(e){ current[e.id] = true; }); });
+  return Object.keys(POOL)
+    .filter(function(id){ return POOL[id].planId === activePlanId && !POOL[id].empty && !current[id]; })
+    .map(function(id){ return POOL[id]; })
+    .sort(function(a,b){ return a.n.localeCompare(b.n, "de"); });
+}
+
+const TRENDS = [
+  { t:"down", label:"Senken",   gly:"▼" },
+  { t:"hold", label:"Halten",   gly:"●" },
+  { t:"up",   label:"Steigern", gly:"▲" }
+];
+
+/* ============================================================
+   2. Speicher — localStorage, offline, ohne Konto
+   ============================================================ */
+const K_PLAN     = "trainingsplan.v1.plan";
+const K_CUSTOMEX = "trainingsplan.v1.customExercises";
+const K_EXSPEC   = "trainingsplan.v1.exerciseSpec";
+const K_SESSIONS = "trainingsplan.v1.sessions";
+const K_DRAFTS   = "trainingsplan.v1.drafts";
+const K_UI       = "trainingsplan.v1.ui";
+const K_PLANS    = "trainingsplan.v1.plans";
+
+const store = (function(){
+  var ok = true;
+  try { var t="__tp__"; localStorage.setItem(t,"1"); localStorage.removeItem(t); }
+  catch(e){ ok = false; }
+  var mem = {};
+  return {
+    available: ok,
+    read: function(key, fallback){
+      try {
+        var raw = ok ? localStorage.getItem(key) : mem[key];
+        return raw ? JSON.parse(raw) : fallback;
+      } catch(e){ return fallback; }
+    },
+    write: function(key, value){
+      var raw = JSON.stringify(value);
+      try { if(ok) localStorage.setItem(key, raw); else mem[key]=raw; }
+      catch(e){ mem[key]=raw; }
+    }
+  };
+})();
+
+/** sessions: [{date:"2026-08-11", dayId:"total", entries:{exId:{w:Number|null, t:"up"|"hold"|"down"|null}}}] */
+var sessions = store.read(K_SESSIONS, []);
+/** drafts: {exId:{w:"55", t:"up"}} — jede Tastatureingabe wird sofort gesichert */
+var drafts   = store.read(K_DRAFTS, {});
+var ui       = store.read(K_UI, {});
+/** planOrder: {dayId:[exId,…]} — nur belegt, wo getauscht wurde */
+var planOrder = store.read(K_PLAN, {});
+/** customEx: {exId:{id,n,s,p,dayId,planId}} — selbst eingetragene und
+    leere (noch nicht ausgefüllte) Übungen, plan- und tagübergreifend */
+var customEx  = store.read(K_CUSTOMEX, {});
+/** exSpec: {exId:{sets,rmin,rmax}} — geänderte Sätze/Wiederholungen */
+var exSpec    = store.read(K_EXSPEC, {});
+/** userPlans: [{id,name,days:[{id,name,base:[exId,…]}]}] — zusätzliche,
+    komplett in der App angelegte Trainingspläne neben MinMax Workout */
+var userPlans = store.read(K_PLANS, []);
+
+if(!Array.isArray(sessions)) sessions = [];
+if(!drafts || typeof drafts !== "object") drafts = {};
+if(!ui || typeof ui !== "object") ui = {};
+if(!planOrder || typeof planOrder !== "object") planOrder = {};
+if(!customEx || typeof customEx !== "object") customEx = {};
+if(!exSpec || typeof exSpec !== "object") exSpec = {};
+if(!Array.isArray(userPlans)) userPlans = [];
+userPlans = userPlans.filter(function(p){
+  return p && typeof p.id === "string" && typeof p.name === "string" && Array.isArray(p.days);
+});
+
+activePlanId = (typeof ui.activePlanId === "string" && ui.activePlanId) ? ui.activePlanId : MINMAX_PLAN_ID;
+rebuildPlanRegistry();
+
+function saveSessions(){ sessions.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }); store.write(K_SESSIONS, sessions); }
+function saveDrafts(){ store.write(K_DRAFTS, drafts); }
+function saveUi(){ store.write(K_UI, ui); }
+function savePlan(){
+  store.write(K_PLAN, planOrder);
+  store.write(K_CUSTOMEX, customEx);
+  store.write(K_EXSPEC, exSpec);
+  store.write(K_PLANS, userPlans);
+}
+
+/* ============================================================
+   3. Zahlen & Datum
+   ============================================================ */
+const NF = new Intl.NumberFormat("de-DE", { maximumFractionDigits:3 });
+const DF_SHORT = new Intl.DateTimeFormat("de-DE", { day:"2-digit", month:"2-digit" });
+const DF_TINY  = new Intl.DateTimeFormat("de-DE", { day:"numeric", month:"numeric" });
+const DF_LONG  = new Intl.DateTimeFormat("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" });
+
+function fmtKg(v){ return NF.format(v); }
+/** "1 Übung" / "3 Übungen" */
+function plural(n, one, many){ return n + " " + (n === 1 ? one : many); }
+function todayISO(){
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function isoToDate(iso){ var p = iso.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+
+/** Akzeptiert Komma und Punkt, maximal 3 Nachkommastellen. */
+function sanitizeInput(raw){
+  var t = String(raw).replace(/[^0-9.,]/g, "");
+  var i = t.search(/[.,]/);
+  if(i < 0) return t.slice(0, 4);
+  var whole = t.slice(0, i).slice(0, 4);
+  var frac  = t.slice(i+1).replace(/[.,]/g, "").slice(0, 3);
+  return whole + t[i] + frac;
+}
+function parseKg(raw){
+  if(raw == null) return null;
+  var t = String(raw).trim().replace(",", ".");
+  if(!t || t === ".") return null;
+  var v = Number(t);
+  if(!isFinite(v) || v < 0) return null;
+  return Math.round(v * 1000) / 1000;
+}
+
+/* ============================================================
+   4. Historie
+   ============================================================ */
+/** Alle erfassten Gewichte einer Übung, chronologisch. */
+function historyOf(exId){
+  var out = [];
+  for(var i=0;i<sessions.length;i++){
+    var s = sessions[i], e = s.entries && s.entries[exId];
+    if(e && typeof e.w === "number") out.push({ date:s.date, w:e.w, t:e.t || null });
+  }
+  out.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  return out;
+}
+function lastWeight(exId){ var h = historyOf(exId); return h.length ? h[h.length-1].w : null; }
+function lastSessionOf(dayId){
+  var found = null;
+  for(var i=0;i<sessions.length;i++) if(sessions[i].dayId === dayId) found = sessions[i];
+  return found;
+}
+
+/* ============================================================
+   5. DOM-Helfer
+   ============================================================ */
+const SVGNS = "http://www.w3.org/2000/svg";
+function h(tag, attrs, kids){
+  var n = document.createElement(tag);
+  if(attrs) for(var k in attrs){
+    if(k === "text") n.textContent = attrs[k];
+    else if(k === "class") n.className = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  }
+  if(kids) kids.forEach(function(c){ if(c) n.appendChild(c); });
+  return n;
+}
+function svg(tag, attrs, parent){
+  var n = document.createElementNS(SVGNS, tag);
+  if(attrs) for(var k in attrs) n.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(n);
+  return n;
+}
+
+/** Modaler Ja/Nein-Dialog. Liefert ein Promise mit true (bestätigt) oder false. */
+function askConfirm(opts){
+  return new Promise(function(resolve){
+    var dlg  = document.getElementById("confirm-dialog");
+    var body = document.getElementById("confirm-dlg-body");
+    document.getElementById("confirm-dlg-title").textContent = opts.title || "Sicher?";
+    document.getElementById("confirm-dlg-lead").textContent  = opts.lead  || "";
+    while(body.firstChild) body.removeChild(body.firstChild);
+    if(opts.node) body.appendChild(opts.node);
+
+    var yes = document.getElementById("confirm-yes");
+    var no  = document.getElementById("confirm-no");
+    yes.textContent = opts.okLabel || "OK";
+    no.textContent  = opts.cancelLabel || "Abbrechen";
+    yes.className = "btn-line " + (opts.danger ? "danger" : "primary");
+
+    var done = false;
+    function finish(v){
+      if(done) return;
+      done = true;
+      yes.removeEventListener("click", onYes);
+      no.removeEventListener("click", onNo);
+      dlg.removeEventListener("close", onClose);
+      if(dlg.open){ if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open"); }
+      resolve(v);
+    }
+    function onYes(){ finish(true); }
+    function onNo(){ finish(false); }
+    function onClose(){ finish(false); }
+
+    yes.addEventListener("click", onYes);
+    no.addEventListener("click", onNo);
+    dlg.addEventListener("close", onClose);
+
+    if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    setTimeout(function(){ no.focus(); }, 60);
+  });
+}
+
+var toastTimer = null;
+function toast(msg){
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove("on"); }, 2600);
+}
+
+/* ============================================================
+   6. Miniverlauf (letzte 3 Trainingsgewichte)
+   ============================================================ */
+/** Verlauf der letzten Trainings mit Datum und Gewicht, direkt unter dem Namen.
+    Passt nicht alles in eine Zeile, fallen die ältesten Einträge weg (mind. 1). */
+function buildHistory(exId){
+  var wrap = h("div", { class:"hist" });
+  var hist = historyOf(exId).slice(-3);
+  var isBW = !!(POOL[exId] && POOL[exId].bodyweight);
+
+  if(!hist.length){
+    wrap.appendChild(h("span", { class:"hist-empty", text:"Noch kein Training erfasst" }));
+    return wrap;
+  }
+
+  var W = 40, H = 16, PAD = 3;
+  var sp = svg("svg", { class:"spark", width:W, height:H, viewBox:"0 0 "+W+" "+H,
+    "aria-hidden":"true", focusable:"false" });
+  var vals = hist.map(function(p){ return p.w; });
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  var span = hi - lo || 1;
+  var xs = hist.map(function(_, i){ return hist.length === 1 ? W/2 : PAD + i * ((W - PAD*2) / (hist.length - 1)); });
+  var ys = vals.map(function(v){ return H - PAD - ((v - lo) / span) * (H - PAD*2); });
+  if(hist.length > 1){
+    var d = xs.map(function(x, i){ return (i ? "L" : "M") + x.toFixed(1) + " " + ys[i].toFixed(1); }).join(" ");
+    svg("path", { d:d, fill:"none", stroke:"var(--muted)", "stroke-width":"2",
+      "stroke-linecap":"round", "stroke-linejoin":"round" }, sp);
+  }
+  svg("circle", { cx:xs[xs.length-1].toFixed(1), cy:ys[ys.length-1].toFixed(1), r:"2.5",
+    fill:"var(--s1)", stroke:"var(--surface-1)", "stroke-width":"2" }, sp);
+  wrap.appendChild(sp);
+
+  var valsBox = h("span", { class:"hist-vals" });
+  hist.forEach(function(p, i){
+    var val = (isBW ? "+" : "") + fmtKg(p.w);
+    var item = h("span", { class:"hitem" + (i === hist.length-1 ? " hitem-last" : "") });
+    item.appendChild(h("span", { class:"hdate", text:DF_TINY.format(isoToDate(p.date)) }));
+    item.appendChild(h("span", { class:"hkg",
+      text:val + (i === hist.length-1 ? " kg" : "") }));
+    item.title = DF_LONG.format(isoToDate(p.date)) + ": " + val + " kg";
+    valsBox.appendChild(item);
+  });
+  wrap.appendChild(valsBox);
+
+  if(hist.length > 1){
+    var diff = Math.round((hist[hist.length-1].w - hist[hist.length-2].w) * 1000) / 1000;
+    var dir  = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+    var gly  = diff > 0 ? "\u25B2" : diff < 0 ? "\u25BC" : "\u25CF";
+    var badge = h("span", { class:"delta " + dir });
+    badge.appendChild(h("span", { class:"gly", text:gly }));
+    badge.appendChild(document.createTextNode(diff > 0 ? "+" + fmtKg(diff) : diff < 0 ? fmtKg(diff) : "\u00B10"));
+    badge.title = "Veränderung zum vorletzten Training";
+    wrap.appendChild(badge);
+  }
+
+  fitHistory(wrap);
+  return wrap;
+}
+
+/** Kürzt den Verlauf, bis er in eine Zeile passt: erst ältere Einträge, dann die Kurve. */
+function fitHistory(wrap){
+  requestAnimationFrame(function(){
+    if(!wrap.isConnected) return;
+    var box = wrap.querySelector(".hist-vals");
+    if(!box) return;
+    var guard = 0;
+    while(wrap.scrollWidth > wrap.clientWidth + 1 && guard++ < 4){
+      var sp2 = wrap.querySelector(".spark");
+      if(sp2) sp2.remove();
+      else if(box.children.length > 1) box.removeChild(box.firstChild);
+      else break;
+    }
+  });
+}
+
+function refreshHistory(exId){
+  var card = document.querySelector('.ex[data-ex="' + CSS.escape(exId) + '"]');
+  if(!card) return;
+  var old = card.querySelector(".hist");
+  if(old) old.replaceWith(buildHistory(exId));
+}
+
+/* ============================================================
+   7. Übungskarte
+   ============================================================ */
+/** Noch nicht ausgefüllter Slot eines selbst angelegten Trainingsplans:
+    nur die Positionsziffer und ein grosses Plus, das den Ausfüll-Dialog
+    öffnet. Kein Tausch-Button, kein Zug-Anfasser — beides ergibt für eine
+    Übung ohne Namen keinen Sinn. */
+function buildEmptyExerciseSlot(ex, idx){
+  var card = h("article", { class:"ex ex-empty", "data-ex":ex.id });
+  var idxDot = h("span", { class:"idx-dot", text:String(idx+1) });
+  card.appendChild(h("div", { class:"ex-head" }, [ h("span", { class:"ex-idx" }, [ idxDot ]) ]));
+
+  var addBtn = h("button", { class:"ex-empty-add", type:"button",
+    "aria-label":"Übung " + (idx+1) + " hinzufügen" });
+  var pi = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2.4", "stroke-linecap":"round", "aria-hidden":"true" });
+  svg("path", { d:"M12 5v14M5 12h14" }, pi);
+  addBtn.appendChild(pi);
+  addBtn.addEventListener("click", function(){ openFillSlot(ex.id); });
+  card.appendChild(addBtn);
+
+  return card;
+}
+
+function buildExercise(ex, idx){
+  if(ex.empty) return buildEmptyExerciseSlot(ex, idx);
+  var d = drafts[ex.id] || {};
+  var card = h("article", { class:"ex", "data-ex":ex.id });
+
+  var swapBtn = h("button", { class:"ex-swap", type:"button",
+    "aria-label":"Übung tauschen — " + ex.n, title:"Übung tauschen" });
+  var si = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true" });
+  svg("path", { d:"M16 3l4 4-4 4" }, si);
+  svg("path", { d:"M20 7H6a2 2 0 0 0-2 2v2" }, si);
+  svg("path", { d:"M8 21l-4-4 4-4" }, si);
+  svg("path", { d:"M4 17h14a2 2 0 0 0 2-2v-2" }, si);
+  swapBtn.appendChild(si);
+  swapBtn.addEventListener("click", function(){ openSwap(DAY_OF_EX[ex.id].id, ex.id); });
+
+  /* Positionsziffer + unsichtbar vergrösserter Anfasser für "gedrückt
+     halten und ziehen". Der Anfasser sitzt absolut über der Ziffer, damit
+     das 21-px-Badge im Layout unverändert bleibt — .ex-meta verlässt sich
+     weiter auf den gleichen Abstand. */
+  var idxDot = h("span", { class:"idx-dot", text:String(idx+1) });
+  var idxWrap = h("span", { class:"ex-idx" }, [ idxDot ]);
+  var idxHit = h("button", { class:"ex-idx-hit", type:"button",
+    "aria-label":"Reihenfolge ändern — " + ex.n + ". Gedrückt halten und ziehen.",
+    title:"Gedrückt halten und ziehen, um die Reihenfolge zu ändern" });
+  idxWrap.appendChild(idxHit);
+
+  card.appendChild(h("div", { class:"ex-head" }, [
+    idxWrap,
+    h("h3",   { class:"ex-name", text:ex.n }),
+    swapBtn
+  ]));
+
+  wireReorderHandle(idxHit, card, ex);
+
+  card.appendChild(buildHistory(ex.id));
+
+  /* Sätze und Wiederholungen getrennt — beide antippbar. */
+  var meta = h("div", { class:"ex-meta" });
+
+  var setsBtn = h("button", { class:"spec-chip", type:"button",
+    "aria-label":"Sätze ändern — " + ex.n + ", aktuell " + (ex.sets != null ? ex.sets : "–") });
+  setsBtn.appendChild(h("strong", { text:ex.sets != null ? String(ex.sets) : "–" }));
+  setsBtn.appendChild(document.createTextNode(ex.sets === 1 ? " Satz" : " Sätze"));
+  setsBtn.addEventListener("click", function(){ openSpec(ex.id, "sets"); });
+  meta.appendChild(setsBtn);
+
+  var repsBtn = h("button", { class:"spec-chip", type:"button",
+    "aria-label":"Wiederholungen ändern — " + ex.n + ", aktuell " + repsText(ex) });
+  repsBtn.appendChild(h("strong", { text:repsText(ex) }));
+  repsBtn.appendChild(document.createTextNode(" Whlg."));
+  repsBtn.addEventListener("click", function(){ openSpec(ex.id, "reps"); });
+  meta.appendChild(repsBtn);
+
+  if(ex.p){
+    meta.appendChild(h("span", { class:"ex-plan",
+      text:"Gewicht: " + ex.p + (ex.planTrend === "up" ? " · nächstes Mal steigern" : "") }));
+  }
+  card.appendChild(meta);
+
+  /* Gewicht — bei Bodyweight-Übungen Zusatzgewicht zum Körpergewicht: ein
+     "+" davor macht das auf einen Blick klar, 0 bleibt ein echter Wert. */
+  var last = lastWeight(ex.id);
+  var field = h("label", { class:"wfield" + (ex.bodyweight ? " is-bodyweight" : "") });
+  if(ex.bodyweight) field.appendChild(h("span", { class:"wfield-prefix", text:"+", "aria-hidden":"true" }));
+  var input = h("input", {
+    type:"text", inputmode:"decimal", autocomplete:"off", enterkeyhint:"done",
+    placeholder: last != null ? fmtKg(last) : "0",
+    "aria-label": (ex.bodyweight ? "Zusatzgewicht zum Körpergewicht " : "Trainingsgewicht ") + ex.n + " in Kilogramm"
+  });
+  input.value = d.w || "";
+  field.appendChild(input);
+  field.appendChild(h("span", { class:"unit", text:"kg" }));
+
+  /* Haken bestätigt, dass die Übung absolviert ist. Bestätigte Werte
+     werden von „Letzte Gewichte übernehmen" nicht überschrieben. */
+  var check = h("button", { class:"ex-check", type:"button",
+    "aria-label":"Als absolviert bestätigen — " + ex.n });
+  var ci = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2.6", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true" });
+  svg("path", { d:"M4 12.5l5.5 5.5L20 7" }, ci);
+  check.appendChild(ci);
+
+  /** "empty" | "sug" (blau, unbestätigt) | "done" (grün, bestätigt) */
+  function draftState(){
+    var cur = drafts[ex.id];
+    if(!cur || (!cur.w && !cur.t)) return "empty";
+    return cur.sug ? "sug" : "done";
+  }
+  function syncCheck(){
+    var state = draftState();
+    var hasW = !!input.value;
+    field.classList.toggle("has-val", hasW);
+    field.classList.toggle("is-sug",  hasW && state === "sug");
+    field.classList.toggle("is-done", hasW && state === "done");
+    check.hidden = state === "empty";
+    check.setAttribute("aria-pressed", state === "done" ? "true" : "false");
+    check.title = state === "done" ? "Absolviert — antippen zum Zurücknehmen"
+                                   : "Als absolviert bestätigen";
+  }
+  syncCheck();
+
+  check.addEventListener("click", function(){
+    var entry = drafts[ex.id];
+    if(!entry || (!entry.w && !entry.t)) return;
+    if(entry.sug) delete entry.sug; else entry.sug = true;
+    saveDrafts();
+    syncCheck();
+    updateSaveBar(DAY_OF_EX[ex.id].id);
+  });
+
+  input.addEventListener("input", function(){
+    var pos = input.selectionStart;
+    var before = input.value;
+    var clean = sanitizeInput(before);
+    if(clean !== before){
+      input.value = clean;
+      try { input.setSelectionRange(pos - (before.length - clean.length), pos - (before.length - clean.length)); } catch(e){}
+    }
+    var had = drafts[ex.id] && drafts[ex.id].w;
+    var entry = drafts[ex.id] || (drafts[ex.id] = {});
+    /* Neu getippter Wert ist zunächst unbestätigt; eine Korrektur an einem
+       bereits bestätigten Wert bleibt bestätigt. */
+    if(clean && !had) entry.sug = true;
+    entry.w = clean;
+    if(!clean && !entry.t) delete drafts[ex.id];
+    saveDrafts();
+    syncCheck();
+    updateSaveBar(DAY_OF_EX[ex.id].id);
+  });
+
+  var body = h("div", { class:"ex-body" }, [ h("div", { class:"ex-line" }, [ field, check ]) ]);
+  card.appendChild(body);
+
+  /* 3-Wege-Schalter */
+  var seg = h("div", { class:"seg", role:"radiogroup", "aria-label":"Nächstes Training — " + ex.n });
+  TRENDS.forEach(function(tr){
+    var b = h("button", { type:"button", role:"radio", "data-t":tr.t, "aria-checked": d.t === tr.t ? "true" : "false" });
+    b.appendChild(h("span", { class:"gly", text:tr.gly, "aria-hidden":"true" }));
+    b.appendChild(document.createTextNode(tr.label));
+    b.tabIndex = d.t === tr.t ? 0 : (d.t ? -1 : 0);
+    b.addEventListener("click", function(){
+      var fresh = !drafts[ex.id];
+      var entry = drafts[ex.id] || (drafts[ex.id] = {});
+      var next = entry.t === tr.t ? null : tr.t;
+      entry.t = next;
+      if(fresh && next) entry.sug = true;
+      if(!entry.w && !next) delete drafts[ex.id];
+      saveDrafts();
+      syncCheck();
+      seg.querySelectorAll("button").forEach(function(o){
+        var on = o.getAttribute("data-t") === next;
+        o.setAttribute("aria-checked", on ? "true" : "false");
+        o.tabIndex = next ? (on ? 0 : -1) : 0;
+      });
+      updateSaveBar(DAY_OF_EX[ex.id].id);
+    });
+    seg.appendChild(b);
+  });
+  seg.addEventListener("keydown", function(e){
+    var keys = ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"];
+    if(keys.indexOf(e.key) < 0) return;
+    e.preventDefault();
+    var btns = Array.prototype.slice.call(seg.querySelectorAll("button"));
+    var cur = btns.indexOf(document.activeElement);
+    var step = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+    var next = btns[(Math.max(cur, 0) + step + btns.length) % btns.length];
+    next.focus(); next.click();
+  });
+  body.appendChild(seg);
+
+  return card;
+}
+
+/* ============================================================
+   7b. Übungen per Ziehen neu anordnen
+   ------------------------------------------------------------
+   Gedrückt halten auf der Positionsziffer aktiviert nach einer kurzen
+   Verzögerung den Zug-Modus; vorher zählt jede Bewegung als Wisch-Geste
+   und bricht die Haltezeit ab (siehe touch-action-Hinweis bei .ex-idx-hit
+   für den Grund, warum der Anfasser selbst dabei nicht mehr scrollt).
+
+   Während des Zugs wird kein DOM-Knoten verschoben — nur die betroffenen
+   Karten bekommen ein transform. Nachbarn, an denen die gezogene Karte
+   vorbeigezogen wird, animieren sichtbar an ihren neuen Platz ("Platz
+   machen"); die gezogene Karte selbst folgt ohne Verzögerung dem Finger.
+
+   Nahe Bildschirmrand (unter dem Kopfbereich / über der Tableiste) läuft
+   ein sanft gedrosseltes Auto-Scroll. Es teilt sich EINE Schleife mit der
+   Positionsauswertung: jeder Frame scrollt (falls nötig) UND prüft sofort
+   erneut auf einen Platzwechsel — Scrollen kann also nie passieren, ohne
+   dass die eigentliche Umordnung mitläuft.
+   ============================================================ */
+function wireReorderHandle(handle, card, ex){
+  var HOLD_MS = 350, CANCEL_PX = 10;
+  var pending = null;
+
+  handle.addEventListener("pointerdown", function(e){
+    if(e.pointerType === "mouse" && e.button !== 0) return;
+    var startX = e.clientX, startY = e.clientY, pid = e.pointerId;
+
+    function cleanupPending(){
+      window.removeEventListener("pointermove", onPreMove);
+      window.removeEventListener("pointerup", onPreUp);
+      window.removeEventListener("pointercancel", onPreUp);
+    }
+    function onPreMove(ev){
+      if(ev.pointerId !== pid || !pending) return;
+      if(Math.abs(ev.clientX - startX) > CANCEL_PX || Math.abs(ev.clientY - startY) > CANCEL_PX){
+        clearTimeout(pending.timer);
+        pending = null;
+        cleanupPending();
+      }
+    }
+    function onPreUp(ev){
+      if(ev.pointerId !== pid) return;
+      if(pending) clearTimeout(pending.timer);
+      pending = null;
+      cleanupPending();
+    }
+
+    var timer = setTimeout(function(){
+      pending = null;
+      cleanupPending();
+      beginReorderDrag(handle, card, ex, pid, startY);
+    }, HOLD_MS);
+    pending = { timer:timer };
+
+    window.addEventListener("pointermove", onPreMove);
+    window.addEventListener("pointerup", onPreUp);
+    window.addEventListener("pointercancel", onPreUp);
+  });
+}
+
+function beginReorderDrag(handle, card, ex, pointerId, initialClientY){
+  var day = DAY_OF_EX[ex.id];
+  var list = card.parentElement;
+  var siblings = Array.prototype.slice.call(list.children).filter(function(el){
+    return el.classList.contains("ex");
+  });
+  if(siblings.length < 2) return;
+
+  try { handle.setPointerCapture(pointerId); } catch(e){}
+
+  var scrollAtStart = window.scrollY;
+  var rects = siblings.map(function(el){ return el.getBoundingClientRect(); });
+  var slotTop = rects.map(function(r){ return r.top + scrollAtStart; });
+  var slotMid = rects.map(function(r, i){ return slotTop[i] + r.height / 2; });
+
+  var elFor = {}, originalIndexOf = {};
+  siblings.forEach(function(el, i){ elFor[el.dataset.ex] = el; originalIndexOf[el.dataset.ex] = i; });
+  var order = siblings.map(function(el){ return el.dataset.ex; });
+  var startOrder = order.slice();
+
+  var draggedIndex = originalIndexOf[ex.id];
+  var homeMid = slotMid[draggedIndex];
+  var startPageY = initialClientY + scrollAtStart;
+  var lastClientY = initialClientY;
+
+  list.classList.add("is-reordering");
+  document.body.classList.add("is-reordering");
+  card.classList.add("is-dragging");
+  try { if(navigator.vibrate) navigator.vibrate(12); } catch(e){}
+
+  function shiftTo(id, newIdx){
+    var el = elFor[id];
+    el.style.transform = "translateY(" + (slotTop[newIdx] - slotTop[originalIndexOf[id]]) + "px)";
+  }
+
+  function evaluate(){
+    var pointerPageY = lastClientY + window.scrollY;
+    var dy = pointerPageY - startPageY;
+    card.style.transform = "translateY(" + dy + "px)";
+    var draggedMid = homeMid + dy;
+
+    while(draggedIndex < order.length - 1 && draggedMid > slotMid[draggedIndex + 1]){
+      var a = order[draggedIndex + 1];
+      order[draggedIndex + 1] = order[draggedIndex];
+      order[draggedIndex] = a;
+      draggedIndex++;
+      shiftTo(a, draggedIndex - 1);
+    }
+    while(draggedIndex > 0 && draggedMid < slotMid[draggedIndex - 1]){
+      var b = order[draggedIndex - 1];
+      order[draggedIndex - 1] = order[draggedIndex];
+      order[draggedIndex] = b;
+      draggedIndex--;
+      shiftTo(b, draggedIndex + 1);
+    }
+  }
+
+  var headerEl = document.querySelector(".app-header");
+  var tabbarEl = document.querySelector(".tabbar");
+  var EDGE = 56, MAX_PX_SEC = 600;
+  var rafId = null, lastT = null;
+
+  function loop(now){
+    if(lastT == null) lastT = now;
+    var dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+
+    var topLimit = headerEl.getBoundingClientRect().bottom;
+    var botLimit = tabbarEl.getBoundingClientRect().top;
+    if(lastClientY < topLimit + EDGE){
+      var depthT = Math.min(1, (topLimit + EDGE - lastClientY) / EDGE);
+      window.scrollBy(0, -MAX_PX_SEC * depthT * dt);
+    } else if(lastClientY > botLimit - EDGE){
+      var depthB = Math.min(1, (lastClientY - (botLimit - EDGE)) / EDGE);
+      window.scrollBy(0, MAX_PX_SEC * depthB * dt);
+    }
+
+    evaluate();
+    rafId = requestAnimationFrame(loop);
+  }
+  rafId = requestAnimationFrame(loop);
+
+  function onMove(e){
+    if(e.pointerId !== pointerId) return;
+    e.preventDefault();
+    lastClientY = e.clientY;
+  }
+  function finish(){
+    cancelAnimationFrame(rafId);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onCancel);
+    try { handle.releasePointerCapture(pointerId); } catch(e){}
+    document.body.classList.remove("is-reordering");
+
+    var changed = order.some(function(id, i){ return id !== startOrder[i]; });
+    if(changed){
+      planOrder[day.id] = order;
+      savePlan();
+      applyPlan();
+      Sync.pushPlan();
+      rebuildAll();
+      toast("Reihenfolge geändert");
+    } else {
+      siblings.forEach(function(el){ el.style.transform = ""; });
+      list.classList.remove("is-reordering");
+      card.classList.remove("is-dragging");
+    }
+  }
+  function onUp(e){ if(e.pointerId === pointerId) finish(); }
+  function onCancel(e){ if(e.pointerId === pointerId) finish(); }
+
+  window.addEventListener("pointermove", onMove, { passive:false });
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onCancel);
+}
+
+/* ============================================================
+   8. Trainingstag-Ansicht
+   ============================================================ */
+/** Was aus einem Entwurf in die Einheit wandert — oder null.
+    Unbestätigte (blaue) Einträge gelten als nicht vorhanden. */
+function confirmedEntry(exId){
+  var d = drafts[exId];
+  if(!d || d.sug) return null;
+  var w = parseKg(d.w);
+  if(w == null && !d.t) return null;
+  /* Bodyweight-Übungen: ein leeres Feld heisst "nur Körpergewicht", nicht
+     "kein Gewicht" — 0 wird zum echten, gespeicherten Wert. "Nicht gemacht"
+     bleibt davon unabhängig: keine Bestätigung, gar kein Eintrag. */
+  if(w == null && POOL[exId] && POOL[exId].bodyweight) w = 0;
+  return { w:w, t:d.t || null };
+}
+
+function countFilled(day){
+  var n = 0;
+  day.ex.forEach(function(e){ if(confirmedEntry(e.id)) n++; });
+  return n;
+}
+
+/** Bestätigt in einem Rutsch alles, was eingetragen, aber noch blau ist. */
+function confirmAllOf(day){
+  var n = 0;
+  day.ex.forEach(function(e){
+    var d = drafts[e.id];
+    if(d && d.sug && (d.w || d.t)){ delete d.sug; n++; }
+  });
+  if(!n){ toast("Nichts zu bestätigen"); return; }
+  saveDrafts();
+  rebuildAll();
+  toast(plural(n, "Übung", "Übungen") + " bestätigt");
+}
+
+/** Eingetragen, aber noch nicht bestätigt. */
+function countOpen(day){
+  var n = 0;
+  day.ex.forEach(function(e){
+    var d = drafts[e.id];
+    if(d && d.sug && (parseKg(d.w) != null || d.t)) n++;
+  });
+  return n;
+}
+
+function updateSaveBar(dayId){
+  var day = DAYS.filter(function(d){ return d.id === dayId; })[0];
+  if(!day) return;
+  var btn = document.getElementById("save-" + dayId);
+  var hint = document.getElementById("hint-" + dayId);
+  var pre = document.getElementById("prefill-" + dayId);
+  var all = document.getElementById("confirmall-" + dayId);
+  if(!btn) return;
+  var n = countFilled(day);
+  if(all) all.disabled = countOpen(day) === 0;
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? "Einheit speichern" : "Einheit speichern (" + n + ")";
+  if(hint){
+    var open = countOpen(day);
+    var openTxt = open
+      ? " " + (open === 1 ? "Ein blauer Wert ist" : open + " blaue Werte sind")
+        + " nicht bestätigt und " + (open === 1 ? "wird" : "werden") + " nicht gespeichert."
+      : "";
+    hint.textContent = n === 0
+      ? (open ? "Mit dem grünen Haken bestätigen, was du absolviert hast."
+              : "Trage mindestens ein Gewicht oder eine Tendenz ein.")
+      : n + " von " + day.ex.filter(function(e){ return !e.empty; }).length + " Übungen " + (n === 1 ? "wird" : "werden")
+        + " mit dem heutigen Datum gespeichert." + openTxt;
+  }
+  if(pre){
+    var hasAny = day.ex.some(function(e){ return lastWeight(e.id) != null; });
+    pre.disabled = !hasAny;
+  }
+}
+
+function buildDayView(day){
+  var view = h("section", { class:"view", "data-view":day.id, role:"tabpanel", id:"panel-"+day.id, "aria-labelledby":"tab-"+day.id, tabindex:"-1" });
+
+  var lastS = lastSessionOf(day.id);
+  var meta = h("p", { class:"day-meta" });
+  meta.textContent = lastS
+    ? "Zuletzt " + DF_LONG.format(isoToDate(lastS.date))
+    : "Noch kein Training erfasst";
+  view.appendChild(h("div", { class:"day-head" }, [
+    h("h2", { text:day.name }),
+    meta
+  ]));
+
+  var pre = h("button", { class:"prefill", type:"button", id:"prefill-"+day.id });
+  var ic = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true" });
+  svg("path", { d:"M3 12a9 9 0 1 0 3-6.7" }, ic);
+  svg("path", { d:"M3 4v5h5" }, ic);
+  pre.appendChild(ic);
+  pre.appendChild(document.createTextNode("Letzte Gewichte übernehmen"));
+  /* Füllt ausschliesslich leere Felder — bereits eingetragene Werte, ob
+     bestätigt oder nicht, bleiben unangetastet. Übernommene Werte sind
+     unbestätigt (blau), bis der Haken gedrückt wird. */
+  pre.addEventListener("click", function(){
+    var n = 0, kept = 0;
+    day.ex.forEach(function(e){
+      var entry = drafts[e.id];
+      if(entry && entry.w){ kept++; return; }
+      var w = lastWeight(e.id);
+      if(w == null) return;
+      entry = drafts[e.id] || (drafts[e.id] = {});
+      entry.w = fmtKg(w);
+      entry.sug = true;
+      n++;
+    });
+    saveDrafts();
+    rebuildAll();
+    if(n) toast(plural(n, "Gewicht", "Gewichte") + " übernommen"
+      + (kept ? " · " + kept + " bereits eingetragen" : ""));
+    else toast(kept ? "Alle Felder sind schon gefüllt" : "Keine früheren Gewichte vorhanden");
+  });
+  view.appendChild(pre);
+
+  var list = h("div", { class:"ex-list" });
+  day.ex.forEach(function(e, i){ list.appendChild(buildExercise(e, i)); });
+  view.appendChild(list);
+
+  /* Nur selbst angelegte Pläne dürfen wachsen — MinMax' Tage stehen fest
+     im Code, dort gibt es "neue Übung hinzufügen" per Anfrage im Chat. */
+  var plan = planById(day.planId);
+  if(plan && !plan.builtin) view.appendChild(buildAddSlotRow(day));
+
+  var allBtn = h("button", { class:"btn-confirm-all", type:"button", id:"confirmall-"+day.id,
+    title:"Alle eingetragenen Werte als absolviert bestätigen",
+    "aria-label":"Alle eingetragenen Werte bestätigen — " + day.name });
+  var ai = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2.6", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true" });
+  svg("path", { d:"M4 12.5l5.5 5.5L20 7" }, ai);
+  allBtn.appendChild(ai);
+  allBtn.appendChild(h("span", { text:"Alle" }));
+  allBtn.addEventListener("click", function(){ confirmAllOf(day); });
+
+  var saveBtn = h("button", { class:"btn-primary", type:"button", id:"save-"+day.id, text:"Einheit speichern" });
+  saveBtn.addEventListener("click", function(){ saveDay(day); });
+
+  view.appendChild(h("div", { class:"save-bar" }, [
+    h("div", { class:"save-row" }, [ allBtn, saveBtn ]),
+    h("p", { class:"save-hint", id:"hint-"+day.id })
+  ]));
+
+  return view;
+}
+
+/** Ab dieser relativen Abweichung zum letzten Gewicht wird nachgefragt. */
+const OUTLIER_LIMIT = 0.30;
+
+/** Findet Eingaben, die stark vom letzten erfassten Gewicht abweichen — meist Tippfehler. */
+function findOutliers(entries){
+  var out = [];
+  Object.keys(entries).forEach(function(id){
+    var w = entries[id].w;
+    if(w == null) return;
+    /* Zusatzgewicht ist eine kleine, oft bei 0 startende Zahl — prozentuale
+       Abweichung ist hier kein sinnvolles Signal (0→5 kg wäre schon +∞ %,
+       2,5→5 kg +100 %, beides normale Steigerungen, kein Tippfehler). */
+    if(POOL[id] && POOL[id].bodyweight) return;
+    var last = lastWeight(id);
+    if(last == null || last <= 0) return;
+    var rel = Math.abs(w - last) / last;
+    if(rel > OUTLIER_LIMIT){
+      out.push({ name:(POOL[id] || {}).n || id, from:last, to:w,
+                 pct:Math.round(rel * 100), up:w > last });
+    }
+  });
+  return out;
+}
+
+function outlierNode(list){
+  var box = h("div", { class:"odd-list" });
+  list.forEach(function(o){
+    var row = h("div", { class:"odd" });
+    row.appendChild(h("span", { class:"odd-name", text:o.name }));
+    var jump = h("span", { class:"odd-jump" });
+    jump.appendChild(document.createTextNode(fmtKg(o.from) + " kg"));
+    jump.appendChild(h("span", { text:"→" }));
+    jump.appendChild(h("strong", { text:fmtKg(o.to) + " kg" }));
+    row.appendChild(jump);
+    row.appendChild(h("span", { class:"odd-pct", text:(o.up ? "+" : "−") + o.pct + " %" }));
+    box.appendChild(row);
+  });
+  return box;
+}
+
+function saveDay(day){
+  var date = todayISO();
+  var entries = {};
+  var count = 0;
+  day.ex.forEach(function(e){
+    var entry = confirmedEntry(e.id);
+    if(!entry) return;
+    entries[e.id] = entry;
+    count++;
+  });
+  if(!count){
+    toast(countOpen(day) ? "Noch nichts bestätigt — Haken drücken" : "Keine Eingaben zum Speichern");
+    return;
+  }
+
+  var odd = findOutliers(entries);
+  if(odd.length){
+    askConfirm({
+      title: odd.length === 1 ? "Ungewöhnliches Gewicht" : "Ungewöhnliche Gewichte",
+      lead: (odd.length === 1 ? "Ein Wert weicht" : odd.length + " Werte weichen")
+          + " um mehr als " + Math.round(OUTLIER_LIMIT * 100)
+          + " % vom letzten Training ab. Stimmt das?",
+      node: outlierNode(odd),
+      okLabel: "Trotzdem speichern",
+      cancelLabel: "Nochmal prüfen"
+    }).then(function(ok){ if(ok) commitDay(day, date, entries, count); });
+    return;
+  }
+  commitDay(day, date, entries, count);
+}
+
+function commitDay(day, date, entries, count){
+  var existing = null;
+  for(var i=0;i<sessions.length;i++){
+    if(sessions[i].dayId === day.id && sessions[i].date === date){ existing = sessions[i]; break; }
+  }
+  var session;
+  if(existing){
+    for(var k in entries) existing.entries[k] = entries[k];
+    session = existing;
+  } else {
+    session = { date:date, dayId:day.id, entries:entries };
+    sessions.push(session);
+  }
+  saveSessions();
+  Sync.push(session);
+
+  day.ex.forEach(function(e){ delete drafts[e.id]; });
+  saveDrafts();
+
+  var view = document.querySelector('.view[data-view="' + day.id + '"]');
+  if(view){
+    day.ex.forEach(function(e){
+      if(e.empty) return;
+      var card = view.querySelector('.ex[data-ex="' + CSS.escape(e.id) + '"]');
+      if(!card) return;
+      var inp = card.querySelector("input");
+      inp.value = "";
+      inp.closest(".wfield").classList.remove("has-val", "is-sug", "is-done");
+      var chk = card.querySelector(".ex-check");
+      if(chk){ chk.hidden = true; chk.setAttribute("aria-pressed", "false"); }
+      var w = lastWeight(e.id);
+      inp.placeholder = w != null ? fmtKg(w) : "0";
+      card.querySelectorAll(".seg button").forEach(function(b){ b.setAttribute("aria-checked","false"); b.tabIndex = 0; });
+      refreshHistory(e.id);
+    });
+    var meta = view.querySelector(".day-meta");
+    if(meta) meta.textContent = "Zuletzt " + DF_LONG.format(isoToDate(date));
+  }
+  updateSaveBar(day.id);
+  renderProgress();
+  toast(plural(count, "Übung", "Übungen") + " gespeichert — " + DF_LONG.format(isoToDate(date)));
+}
+
+/* ============================================================
+   9. Fortschritt — Liniendiagramm
+   ============================================================ */
+const SERIES_VARS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
+
+function buildProgressView(){
+  var view = h("section", { class:"view", "data-view":"progress", role:"tabpanel", id:"panel-progress", "aria-labelledby":"tab-progress", tabindex:"-1" });
+
+  view.appendChild(h("div", { class:"day-head" }, [ h("h2", { text:"Fortschritt" }) ]));
+
+  var pick = h("div", { class:"picker" });
+  pick.appendChild(h("label", { for:"metric", text:"Auswahl" }));
+  var sel = h("select", { id:"metric" });
+
+  var g1 = h("optgroup", { label:"Trainingstage" });
+  DAYS.forEach(function(d){ g1.appendChild(h("option", { value:"day:"+d.id, text:d.name })); });
+  sel.appendChild(g1);
+
+  DAYS.forEach(function(d){
+    var filled = d.ex.filter(function(e){ return !e.empty; });
+    if(!filled.length) return;
+    var g = h("optgroup", { label:"Einzelübung · " + d.name });
+    filled.forEach(function(e){ g.appendChild(h("option", { value:"ex:"+e.id, text:e.n })); });
+    sel.appendChild(g);
+  });
+
+  /* Getauschte Übungen bleiben abrufbar — im Tagesdiagramm stehen sie nicht,
+     weil die Farbpalette auf acht Kurven ausgelegt ist. */
+  var gone = replacedExercises();
+  if(gone.length){
+    var gr = h("optgroup", { label:"Ersetzte Übungen" });
+    gone.forEach(function(e){ gr.appendChild(h("option", { value:"ex:"+e.id, text:e.n })); });
+    sel.appendChild(gr);
+  }
+
+  sel.value = ui.metric && sel.querySelector('option[value="' + CSS.escape(ui.metric) + '"]') ? ui.metric : "day:total";
+  sel.addEventListener("change", function(){ ui.metric = sel.value; saveUi(); renderProgress(); });
+  pick.appendChild(sel);
+  view.appendChild(pick);
+
+  var card = h("div", { class:"card" });
+  card.appendChild(h("div", { class:"card-head", id:"chart-head" }, [
+    h("h3", { id:"chart-title", text:"" }),
+    h("p",  { id:"chart-sub", text:"" })
+  ]));
+  var wrap = h("div", { class:"chart-wrap", id:"chart-wrap" });
+  wrap.appendChild(h("div", { class:"tip", id:"tip", "aria-hidden":"true" }));
+  card.appendChild(wrap);
+  card.appendChild(h("div", { class:"legend", id:"legend" }));
+
+  var det = h("details", { class:"table-view" });
+  det.appendChild(h("summary", { text:"Tabelle anzeigen" }));
+  det.appendChild(h("div", { class:"table-scroll", id:"table-scroll" }));
+  card.appendChild(det);
+  view.appendChild(card);
+
+  var log = h("div", { class:"card log-card" });
+  log.appendChild(h("div", { class:"card-head" }, [
+    h("h3", { text:"Trainings-Log" }),
+    h("p",  { text:"Gespeicherte Einheiten — antippen zum Korrigieren oder Löschen" })
+  ]));
+  log.appendChild(h("div", { id:"log-body" }));
+  view.appendChild(log);
+
+  var tools = h("div", { class:"data-tools" });
+  var bExp = h("button", { type:"button", text:"Daten exportieren" });
+  var bImp = h("button", { type:"button", text:"Daten importieren" });
+  bExp.addEventListener("click", exportData);
+  bImp.addEventListener("click", importData);
+  tools.appendChild(bExp); tools.appendChild(bImp);
+  view.appendChild(tools);
+  view.appendChild(h("p", { class:"tools-hint", text:"Alle Daten liegen offline auf diesem Gerät. Export sichert sie als JSON-Datei." }));
+
+  return view;
+}
+
+var hiddenSeries = {};
+
+function collectSeries(){
+  var metric = ui.metric || "day:total";
+  var parts = metric.split(":");
+  if(parts[0] === "ex"){
+    var ex = POOL[parts[1]];
+    if(!ex) return { title:"Fortschritt", sub:"", series:[] };
+    var home = DAY_OF_EX[ex.id];
+    var inPlan = home && home.ex.some(function(e){ return e.id === ex.id; });
+    var bits = [];
+    if(home) bits.push(home.name);
+    if(ex.bodyweight) bits.push("Zusatzgewicht zum Körpergewicht");
+    else if(ex.p) bits.push("Gewicht " + ex.p);
+    if(!inPlan) bits.push("ersetzt");
+    return {
+      title: ex.n,
+      sub: bits.join(" · "),
+      series: [{ id:ex.id, name:ex.n, slot:0, points:historyOf(ex.id) }]
+    };
+  }
+  var day = DAYS.filter(function(d){ return d.id === parts[1]; })[0] || DAYS[0];
+  var filled = day.ex.filter(function(e){ return !e.empty; });
+  return {
+    title: day.name,
+    sub: filled.length + " Übungen · Gewichtsverlauf",
+    series: filled.map(function(e, i){ return { id:e.id, name:e.n, slot:i % 8, points:historyOf(e.id) }; })
+  };
+}
+
+function niceTicks(min, max, count){
+  if(!(max > min)){ min = min - 1; max = max + 1; }
+  var raw = (max - min) / Math.max(count, 1);
+  var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  var norm = raw / mag;
+  var step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  var start = Math.floor(min / step) * step;
+  var ticks = [];
+  for(var v = start; v <= max + step * 0.5; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return ticks;
+}
+
+function renderProgress(){
+  var wrap = document.getElementById("chart-wrap");
+  if(!wrap) return;
+  var data = collectSeries();
+
+  document.getElementById("chart-title").textContent = data.title;
+  document.getElementById("chart-sub").textContent = data.sub;
+
+  var visible = data.series.filter(function(s){ return !hiddenSeries[s.id]; });
+  var withData = visible.filter(function(s){ return s.points.length > 0; });
+
+  drawChart(wrap, withData, data.series.length);
+  drawLegend(data.series);
+  drawTable(data.series);
+}
+
+function drawChart(wrap, series, totalSeries){
+  var old = wrap.querySelector("svg");
+  if(old) old.remove();
+  var note = wrap.parentNode.querySelector(".empty-note");
+  if(note) note.remove();
+
+  var W = Math.max(wrap.clientWidth || 320, 260);
+  var directLabels = totalSeries <= 4 && series.length > 0;
+  var padT = 24, padB = 30, padL = 46, padR = directLabels ? 54 : 14;
+  var plotH = 220;
+  var H = padT + plotH + padB;
+  var plotW = Math.max(W - padL - padR, 60);
+
+  var s = svg("svg", {
+    width:W, height:H, viewBox:"0 0 "+W+" "+H,
+    role:"img",
+    "aria-label": series.length ? "Gewichtsverlauf über die Zeit" : "Gewichtsverlauf — noch keine Daten erfasst"
+  });
+
+  /* --- Domains --- */
+  var allT = [], allV = [];
+  series.forEach(function(sr){ sr.points.forEach(function(p){ allT.push(isoToDate(p.date).getTime()); allV.push(p.w); }); });
+
+  var empty = allV.length === 0;
+  var vMin, vMax, tMin, tMax, ticks;
+
+  if(empty){
+    ticks = [0, 25, 50, 75, 100];
+    vMin = 0; vMax = 100;
+    tMax = Date.now(); tMin = tMax - 30*864e5;
+  } else {
+    var lo = Math.min.apply(null, allV), hi = Math.max.apply(null, allV);
+    var pad = (hi - lo) * 0.12 || Math.max(hi * 0.08, 1);
+    ticks = niceTicks(Math.max(lo - pad, 0), hi + pad, 4);
+    vMin = ticks[0]; vMax = ticks[ticks.length-1];
+    tMin = Math.min.apply(null, allT); tMax = Math.max.apply(null, allT);
+    if(tMin === tMax){ tMin -= 3*864e5; tMax += 3*864e5; }
+  }
+
+  function X(t){ return padL + (tMax === tMin ? plotW/2 : (t - tMin) / (tMax - tMin) * plotW); }
+  function Y(v){ return padT + plotH - (vMax === vMin ? plotH/2 : (v - vMin) / (vMax - vMin) * plotH); }
+
+  /* --- Gitternetz + Y-Achse --- */
+  ticks.forEach(function(v){
+    var y = Y(v);
+    svg("line", { x1:padL, y1:y.toFixed(1), x2:padL+plotW, y2:y.toFixed(1), stroke:"var(--grid)", "stroke-width":"1" }, s);
+    var tx = svg("text", { x:padL-8, y:(y+4).toFixed(1), "text-anchor":"end", fill:"var(--muted)", "font-size":"10.5", "font-family":"system-ui,-apple-system,'Segoe UI',sans-serif", "font-variant-numeric":"tabular-nums" }, s);
+    tx.textContent = fmtKg(v);
+  });
+  svg("line", { x1:padL, y1:padT, x2:padL, y2:padT+plotH, stroke:"var(--axis)", "stroke-width":"1" }, s);
+  svg("line", { x1:padL, y1:padT+plotH, x2:padL+plotW, y2:padT+plotH, stroke:"var(--axis)", "stroke-width":"1" }, s);
+
+  var yl = svg("text", { x:padL-8, y:padT-10, "text-anchor":"end", fill:"var(--muted)", "font-size":"10", "font-family":"system-ui,-apple-system,'Segoe UI',sans-serif" }, s);
+  yl.textContent = "kg";
+
+  /* --- Leerzustand: langgezogener Strich durch den Nullpunkt --- */
+  if(empty){
+    var y0 = Y(0);
+    svg("line", { x1:padL, y1:y0, x2:padL+plotW, y2:y0, stroke:"var(--muted)", "stroke-width":"2", "stroke-linecap":"round", opacity:"0.55" }, s);
+    svg("circle", { cx:padL, cy:y0, r:"4", fill:"var(--muted)", stroke:"var(--surface-1)", "stroke-width":"2" }, s);
+    var xt0 = svg("text", { x:padL, y:padT+plotH+18, "text-anchor":"start", fill:"var(--muted)", "font-size":"10.5", "font-family":"system-ui,-apple-system,'Segoe UI',sans-serif" }, s);
+    xt0.textContent = "Zeit";
+    wrap.insertBefore(s, wrap.firstChild);
+    var p = h("p", { class:"empty-note", text:"Noch keine gespeicherten Einheiten — der Verlauf startet mit der ersten gespeicherten Einheit." });
+    wrap.parentNode.insertBefore(p, wrap.nextSibling);
+    return;
+  }
+
+  /* --- X-Achse (Zeit) --- */
+  var uniq = Array.from(new Set(allT)).sort(function(a,b){ return a-b; });
+  var maxLabels = Math.max(2, Math.min(4, Math.floor(plotW / 62)));
+  var labelTs = uniq.length <= maxLabels ? uniq : (function(){
+    var out = [];
+    for(var i=0;i<maxLabels;i++) out.push(uniq[Math.round(i * (uniq.length-1) / (maxLabels-1))]);
+    return Array.from(new Set(out));
+  })();
+  labelTs.forEach(function(t, i){
+    var x = X(t);
+    var anchor = i === 0 ? "start" : (i === labelTs.length-1 ? "end" : "middle");
+    var tx = svg("text", { x:x.toFixed(1), y:padT+plotH+18, "text-anchor":anchor, fill:"var(--muted)", "font-size":"10.5", "font-family":"system-ui,-apple-system,'Segoe UI',sans-serif", "font-variant-numeric":"tabular-nums" }, s);
+    tx.textContent = DF_SHORT.format(new Date(t));
+  });
+
+  /* --- Linien --- */
+  series.forEach(function(sr){
+    var col = "var(" + SERIES_VARS[sr.slot] + ")";
+    var pts = sr.points.map(function(p){ return { x:X(isoToDate(p.date).getTime()), y:Y(p.w), w:p.w }; });
+    if(pts.length > 1){
+      var d = pts.map(function(p, i){ return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" ");
+      svg("path", { d:d, fill:"none", stroke:col, "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round" }, s);
+    }
+    pts.forEach(function(p, i){
+      var isLast = i === pts.length-1;
+      svg("circle", {
+        cx:p.x.toFixed(1), cy:p.y.toFixed(1), r: isLast ? "4.5" : (pts.length > 12 ? "0" : "3.5"),
+        fill:col, stroke:"var(--surface-1)", "stroke-width":"2"
+      }, s);
+    });
+    if(directLabels && pts.length){
+      var lastP = pts[pts.length-1];
+      var lab = svg("text", {
+        x:(lastP.x + 8).toFixed(1), y:(lastP.y + 4).toFixed(1),
+        fill:"var(--text-1)", "font-size":"11.5", "font-weight":"650",
+        "font-family":"system-ui,-apple-system,'Segoe UI',sans-serif", "font-variant-numeric":"tabular-nums"
+      }, s);
+      lab.textContent = fmtKg(lastP.w);
+    }
+  });
+
+  /* --- Crosshair + Tooltip --- */
+  var cross = svg("line", { x1:0, y1:padT, x2:0, y2:padT+plotH, stroke:"var(--axis)", "stroke-width":"1", opacity:"0" }, s);
+  var hit = svg("rect", { x:padL, y:padT, width:plotW, height:plotH, fill:"transparent", tabindex:"0", role:"application", "aria-label":"Diagramm erkunden — mit Pfeiltasten durch die Termine navigieren" }, s);
+
+  var tip = document.getElementById("tip");
+  var focusIdx = uniq.length - 1;
+
+  function show(idx){
+    idx = Math.max(0, Math.min(uniq.length-1, idx));
+    focusIdx = idx;
+    var t = uniq[idx];
+    var x = X(t);
+    cross.setAttribute("x1", x.toFixed(1));
+    cross.setAttribute("x2", x.toFixed(1));
+    cross.setAttribute("opacity", "1");
+
+    while(tip.firstChild) tip.removeChild(tip.firstChild);
+    var head = h("div", { class:"tip-date" });
+    head.textContent = DF_LONG.format(new Date(t));
+    tip.appendChild(head);
+
+    var rows = 0;
+    series.forEach(function(sr){
+      var hitPt = sr.points.filter(function(p){ return isoToDate(p.date).getTime() === t; })[0];
+      if(!hitPt) return;
+      rows++;
+      var row = h("div", { class:"tip-row" });
+      var key = h("span", { class:"tip-key" });
+      key.style.background = "var(" + SERIES_VARS[sr.slot] + ")";
+      row.appendChild(key);
+      var val = h("span", { class:"tip-val" });
+      val.textContent = fmtKg(hitPt.w) + " kg";
+      row.appendChild(val);
+      var nm = h("span", { class:"tip-name" });
+      nm.textContent = sr.name;
+      row.appendChild(nm);
+      tip.appendChild(row);
+    });
+    if(!rows){
+      var none = h("div", { class:"tip-name" });
+      none.textContent = "Keine Werte";
+      tip.appendChild(none);
+    }
+
+    tip.classList.add("on");
+    tip.setAttribute("aria-hidden", "false");
+    var tw = tip.offsetWidth || 130;
+    var left = Math.max(tw/2 + 2, Math.min(W - tw/2 - 2, x));
+    tip.style.left = left + "px";
+    tip.style.top  = (padT - 8) + "px";
+  }
+  function hide(){
+    cross.setAttribute("opacity", "0");
+    tip.classList.remove("on");
+    tip.setAttribute("aria-hidden", "true");
+  }
+  function nearest(clientX){
+    var box = s.getBoundingClientRect();
+    var scale = W / box.width;
+    var px = (clientX - box.left) * scale;
+    var best = 0, bestD = Infinity;
+    uniq.forEach(function(t, i){ var d = Math.abs(X(t) - px); if(d < bestD){ bestD = d; best = i; } });
+    return best;
+  }
+
+  hit.addEventListener("pointermove", function(e){ show(nearest(e.clientX)); });
+  hit.addEventListener("pointerdown", function(e){ show(nearest(e.clientX)); });
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("pointercancel", hide);
+  hit.addEventListener("focus", function(){ show(focusIdx); });
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("keydown", function(e){
+    if(e.key === "ArrowLeft"){ e.preventDefault(); show(focusIdx - 1); }
+    else if(e.key === "ArrowRight"){ e.preventDefault(); show(focusIdx + 1); }
+    else if(e.key === "Escape"){ hide(); }
+  });
+
+  wrap.insertBefore(s, wrap.firstChild);
+}
+
+function drawLegend(allSeries){
+  var box = document.getElementById("legend");
+  while(box.firstChild) box.removeChild(box.firstChild);
+  if(allSeries.length < 2) return;
+
+  allSeries.forEach(function(sr){
+    var on = !hiddenSeries[sr.id];
+    var b = h("button", { type:"button", "aria-pressed": on ? "true" : "false" });
+    var key = h("span", { class:"lkey" });
+    key.style.background = "var(" + SERIES_VARS[sr.slot] + ")";
+    b.appendChild(key);
+    var nm = document.createElement("span");
+    nm.textContent = sr.name;
+    b.appendChild(nm);
+    b.addEventListener("click", function(){
+      if(hiddenSeries[sr.id]) delete hiddenSeries[sr.id]; else hiddenSeries[sr.id] = true;
+      renderProgress();
+    });
+    box.appendChild(b);
+  });
+}
+
+function drawTable(allSeries){
+  var box = document.getElementById("table-scroll");
+  while(box.firstChild) box.removeChild(box.firstChild);
+
+  var dates = [];
+  allSeries.forEach(function(sr){ sr.points.forEach(function(p){ if(dates.indexOf(p.date) < 0) dates.push(p.date); }); });
+  dates.sort();
+
+  if(!dates.length){
+    box.appendChild(h("p", { class:"empty-note", text:"Noch keine Werte gespeichert." }));
+    return;
+  }
+
+  var table = document.createElement("table");
+  var thead = document.createElement("thead");
+  var hr = document.createElement("tr");
+  hr.appendChild(h("th", { scope:"col", text:"Datum" }));
+  allSeries.forEach(function(sr){
+    var th = h("th", { scope:"col" });
+    th.textContent = sr.name;
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  table.appendChild(thead);
+
+  var tbody = document.createElement("tbody");
+  dates.forEach(function(dt){
+    var tr = document.createElement("tr");
+    var th = h("th", { scope:"row" });
+    th.textContent = DF_LONG.format(isoToDate(dt));
+    tr.appendChild(th);
+    allSeries.forEach(function(sr){
+      var p = sr.points.filter(function(x){ return x.date === dt; })[0];
+      var td = document.createElement("td");
+      if(p){ td.textContent = fmtKg(p.w) + " kg"; }
+      else { td.textContent = "—"; td.className = "na"; }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  box.appendChild(table);
+}
+
+/* ============================================================
+   10. Export / Import
+   ============================================================ */
+function exportData(){
+  var payload = {
+    app:"trainingsplan", version:2, exported:new Date().toISOString(),
+    sessions:sessions,
+    plan:{ order:planOrder, exercises:customEx, spec:exSpec, plans:userPlans }
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "trainingsplan-" + todayISO() + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+function importData(){
+  var inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "application/json,.json";
+  inp.addEventListener("change", function(){
+    var file = inp.files && inp.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try { parsed = JSON.parse(String(reader.result)); }
+      catch(e){ toast("Datei konnte nicht gelesen werden"); return; }
+      if(!parsed || !Array.isArray(parsed.sessions)){ toast("Kein gültiger Trainingsplan-Export"); return; }
+
+      /* Reihenfolge wichtig: Pläne vor Übungen vor Sätzen/Reihenfolge vor
+         Sessions — jede Stufe prüft gegen das, was die vorherige einträgt
+         (Sessions z. B. gegen POOL, das erst nach den Übungen vollständig
+         ist). Alte Exporte ohne "plans" laufen unverändert weiter durch. */
+      if(parsed.plan && typeof parsed.plan === "object"){
+        var pl = parsed.plan.plans;
+        if(Array.isArray(pl)){
+          pl.forEach(function(p){
+            if(!p || p.id === MINMAX_PLAN_ID || typeof p.id !== "string"
+               || typeof p.name !== "string" || !Array.isArray(p.days)) return;
+            var days = p.days
+              .filter(function(d){ return d && typeof d.id === "string" && typeof d.name === "string" && Array.isArray(d.base); })
+              .map(function(d){ return { id:d.id, name:d.name, base:d.base.filter(function(id){ return typeof id === "string"; }) }; });
+            if(!days.length) return;
+            var idx = -1;
+            for(var i=0;i<userPlans.length;i++) if(userPlans[i].id === p.id){ idx = i; break; }
+            var entry = { id:p.id, name:p.name, days:days };
+            if(idx >= 0) userPlans[idx] = entry; else userPlans.push(entry);
+          });
+        }
+
+        /* Getauschte, eigene UND noch leere Übungen übernehmen — leere Slots
+           haben kein "n" und fielen sonst durch die Prüfung, die früher nur
+           benannte Übungen kannte (aus der Zeit vor eigenen Plänen). */
+        var ex = parsed.plan.exercises;
+        if(ex && typeof ex === "object"){
+          Object.keys(ex).forEach(function(id){
+            var e = ex[id];
+            if(!e || typeof e.dayId !== "string") return;
+            if(e.empty){
+              customEx[id] = { id:id, empty:true, dayId:e.dayId, planId:e.planId || MINMAX_PLAN_ID };
+            } else if(typeof e.n === "string" && e.n){
+              customEx[id] = { id:id, n:e.n, sets:e.sets, rmin:e.rmin, rmax:e.rmax,
+                               p:e.p || "", planTrend:null, dayId:e.dayId,
+                               planId:e.planId || MINMAX_PLAN_ID, bodyweight: !!e.bodyweight };
+            } else return;
+            POOL[id] = customEx[id];
+          });
+        }
+        var sp = parsed.plan.spec;
+        if(sp && typeof sp === "object"){
+          Object.keys(sp).forEach(function(id){
+            var o = sp[id];
+            if(!POOL[id] || !o) return;
+            exSpec[id] = { sets:o.sets, rmin:o.rmin, rmax:o.rmax != null ? o.rmax : null };
+          });
+        }
+        /* Global statt nur gegen den gerade aktiven Plan geprüft — sonst
+           ginge die Reihenfolge aller Tage anderer Pläne beim Import verloren. */
+        var ord = parsed.plan.order;
+        if(ord && typeof ord === "object"){
+          Object.keys(ord).forEach(function(dayId){
+            var idsArr = ord[dayId];
+            if(Array.isArray(idsArr) && idsArr.length
+               && idsArr.every(function(id){ return POOL[id] && POOL[id].dayId === dayId; })){
+              planOrder[dayId] = idsArr;
+            }
+          });
+        }
+        savePlan();
+        rebuildPlanRegistry();
+      }
+
+      /* Über alle Pläne hinweg, nicht nur den aktiven — sonst gingen
+         importierte Sessions anderer, gerade nicht angezeigter Pläne
+         stillschweigend verloren. */
+      var knownDays = {};
+      PLANS.forEach(function(p){ p.days.forEach(function(d){ knownDays[d.id] = true; }); });
+
+      var added = 0;
+      parsed.sessions.forEach(function(s){
+        if(!s || typeof s.date !== "string" || !s.entries) return;
+        if(!knownDays[s.dayId]) return;
+        var target = null;
+        for(var i=0;i<sessions.length;i++){
+          if(sessions[i].dayId === s.dayId && sessions[i].date === s.date){ target = sessions[i]; break; }
+        }
+        if(!target){ target = { date:s.date, dayId:s.dayId, entries:{} }; sessions.push(target); }
+        for(var k in s.entries){
+          if(!POOL[k]) continue;
+          var e = s.entries[k];
+          var w = (e && typeof e.w === "number" && isFinite(e.w)) ? e.w : null;
+          var t = (e && ["up","hold","down"].indexOf(e.t) >= 0) ? e.t : null;
+          if(w == null && !t) continue;
+          target.entries[k] = { w:w, t:t };
+          added++;
+        }
+      });
+      saveSessions();
+      renderPlanBar();
+      buildTabs();
+      rebuildAll();
+      toast(added ? plural(added, "Wert", "Werte") + " importiert" : "Nichts zu importieren");
+    };
+    reader.readAsText(file);
+  });
+  inp.click();
+}
+
+/* ============================================================
+   9b. Trainings-Log — gespeicherte Einheiten nachträglich ändern
+   ============================================================ */
+function findSession(dayId, date){
+  for(var i=0;i<sessions.length;i++){
+    if(sessions[i].dayId === dayId && sessions[i].date === date) return sessions[i];
+  }
+  return null;
+}
+
+function afterLogChange(){
+  saveSessions();
+  refreshFromData();
+  renderLog();
+}
+
+function deleteEntry(session, exId){
+  delete session.entries[exId];
+  if(!Object.keys(session.entries).length){
+    sessions = sessions.filter(function(s){ return s !== session; });
+    Sync.removeSession(session);
+  } else {
+    Sync.removeEntry(session, exId);
+  }
+  afterLogChange();
+}
+
+function deleteSession(session){
+  sessions = sessions.filter(function(s){ return s !== session; });
+  Sync.removeSession(session);
+  afterLogChange();
+}
+
+function buildLogRow(session){
+  var day = dayById(session.dayId);
+  var det = h("details", { class:"log-item" });
+
+  var ids = Object.keys(session.entries);
+  var sum = h("summary");
+  sum.appendChild(h("span", { class:"log-date", text:DF_LONG.format(isoToDate(session.date)) }));
+  sum.appendChild(h("span", { class:"log-day", text:day ? day.name : session.dayId }));
+  sum.appendChild(h("span", { class:"log-count", text:plural(ids.length, "Übung", "Übungen") }));
+  det.appendChild(sum);
+
+  var list = h("div", { class:"log-rows" });
+
+  /* Reihenfolge des Trainingstags beibehalten, Unbekanntes hinten anhängen. */
+  var ordered = [];
+  if(day) day.ex.forEach(function(e){ if(session.entries[e.id]) ordered.push(e.id); });
+  ids.forEach(function(id){ if(ordered.indexOf(id) < 0) ordered.push(id); });
+
+  ordered.forEach(function(id){
+    var entry = session.entries[id];
+    var row = h("div", { class:"log-row" });
+    row.appendChild(h("span", { class:"log-ex", text:(POOL[id] || {}).n || id }));
+
+    var field = h("label", { class:"log-field" });
+    var inp = h("input", { type:"text", inputmode:"decimal", autocomplete:"off",
+      "aria-label":"Gewicht " + ((POOL[id] || {}).n || id) + " am " + session.date });
+    inp.value = entry.w != null ? fmtKg(entry.w) : "";
+    inp.addEventListener("input", function(){
+      inp.value = sanitizeInput(inp.value);
+    });
+    function commit(){
+      var w = parseKg(inp.value);
+      /* Leer oder unlesbar heisst nicht "kein Gewicht" — zum Entfernen gibt es das ×. */
+      if(w == null){ inp.value = entry.w != null ? fmtKg(entry.w) : ""; return; }
+      if(w === entry.w) return;
+      entry.w = w;
+      saveSessions();
+      Sync.push(session);
+      /* Bewusst ohne renderLog(): sonst würde das gerade bearbeitete Feld ersetzt. */
+      refreshFromData();
+    }
+    inp.addEventListener("blur", commit);
+    inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); inp.blur(); } });
+    field.appendChild(inp);
+    field.appendChild(h("span", { class:"log-unit", text:"kg" }));
+    row.appendChild(field);
+
+    var tr = TRENDS.filter(function(t){ return t.t === entry.t; })[0];
+    row.appendChild(h("span", { class:"log-trend " + (entry.t || "none"),
+      text: tr ? tr.gly : "·", title: tr ? tr.label : "keine Tendenz" }));
+
+    var del = h("button", { class:"log-del", type:"button",
+      "aria-label":"Eintrag löschen: " + ((POOL[id] || {}).n || id), title:"Eintrag löschen", text:"×" });
+    del.addEventListener("click", function(){ deleteEntry(session, id); });
+    row.appendChild(del);
+
+    list.appendChild(row);
+  });
+
+  var wipe = h("button", { class:"btn-line danger-ghost log-wipe", type:"button", text:"Ganze Einheit löschen" });
+  wipe.addEventListener("click", function(){
+    askConfirm({
+      title:"Einheit löschen",
+      lead:(day ? day.name : session.dayId) + " vom " + DF_LONG.format(isoToDate(session.date))
+        + " mit " + plural(Object.keys(session.entries).length, "Eintrag", "Einträgen")
+        + " endgültig entfernen?",
+      okLabel:"Löschen", danger:true
+    }).then(function(ok){ if(ok){ deleteSession(session); toast("Einheit gelöscht"); } });
+  });
+  list.appendChild(wipe);
+
+  det.appendChild(list);
+  return det;
+}
+
+function renderLog(){
+  var box = document.getElementById("log-body");
+  if(!box) return;
+  var open = {};
+  box.querySelectorAll("details[open]").forEach(function(d){ open[d.dataset.key] = true; });
+  while(box.firstChild) box.removeChild(box.firstChild);
+
+  if(!sessions.length){
+    box.appendChild(h("p", { class:"empty-note",
+      text:"Noch keine Einheit gespeichert. Gespeicherte Trainings erscheinen hier und lassen sich hier auch korrigieren." }));
+    return;
+  }
+
+  var sorted = sessions.slice().sort(function(a,b){
+    return a.date < b.date ? 1 : a.date > b.date ? -1 : a.dayId.localeCompare(b.dayId);
+  });
+  sorted.forEach(function(s){
+    var row = buildLogRow(s);
+    row.dataset.key = s.dayId + "_" + s.date;
+    if(open[row.dataset.key]) row.open = true;
+    box.appendChild(row);
+  });
+}
+
+/* ============================================================
+   9c. Sätze und Wiederholungen ändern
+   ------------------------------------------------------------
+   Enter übernimmt, Tippen daneben oder Escape bricht ab. Die
+   Änderung gilt nur für diese Übung und wird wie der Tausch im
+   Plan gespeichert.
+   ============================================================ */
+var specCtx = null;
+
+function openSpec(exId, which){
+  var ex = POOL[exId];
+  if(!ex) return;
+  specCtx = { exId:exId, which:which };
+
+  var dlg    = document.getElementById("spec-dialog");
+  var fields = document.getElementById("spec-fields");
+  while(fields.firstChild) fields.removeChild(fields.firstChild);
+
+  document.getElementById("spec-dlg-title").textContent =
+    which === "sets" ? "Sätze" : "Wiederholungen";
+  document.getElementById("spec-dlg-lead").textContent = ex.n;
+  document.getElementById("spec-hint").textContent =
+    which === "sets" ? "Enter übernimmt, daneben tippen bricht ab."
+                     : "Für eine feste Zahl beide Felder gleich setzen. Enter übernimmt.";
+
+  function numField(label, value, ref){
+    var wrap = h("label", { class:"spec-f" });
+    wrap.appendChild(h("span", { text:label }));
+    var inp = h("input", { type:"text", inputmode:"numeric", autocomplete:"off",
+      enterkeyhint:"done", maxlength:"2", "aria-label":label });
+    inp.value = value != null ? String(value) : "";
+    inp.addEventListener("input", function(){ inp.value = inp.value.replace(/[^0-9]/g, "").slice(0, 2); });
+    inp.addEventListener("focus", function(){ inp.select(); });
+    wrap.appendChild(inp);
+    fields.appendChild(wrap);
+    ref.push(inp);
+    return inp;
+  }
+
+  var inputs = [];
+  if(which === "sets"){
+    numField("Anzahl", ex.sets, inputs);
+  } else {
+    numField("von", ex.rmin, inputs);
+    fields.appendChild(h("span", { class:"spec-dash", text:"–" }));
+    numField("bis", ex.rmax != null ? ex.rmax : ex.rmin, inputs);
+  }
+
+  function commit(){
+    var vals = inputs.map(function(i){ return parseInt(i.value, 10); });
+    if(vals.some(function(v){ return !isFinite(v) || v < 1 || v > 99; })){
+      toast("Bitte eine Zahl zwischen 1 und 99 eingeben");
+      return;
+    }
+    if(which === "sets") setSpec(exId, { sets:vals[0] });
+    else {
+      var lo = Math.min(vals[0], vals[1]), hi = Math.max(vals[0], vals[1]);
+      setSpec(exId, { rmin:lo, rmax:hi > lo ? hi : null });
+    }
+    specCtx = null;
+    if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+    rebuildAll();
+  }
+
+  inputs.forEach(function(inp){
+    inp.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); commit(); }
+    });
+  });
+
+  if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  setTimeout(function(){ inputs[0].focus(); inputs[0].select(); }, 60);
+}
+
+function setSpec(exId, patch){
+  var cur = exSpec[exId] || {};
+  var ex  = POOL[exId] || {};
+  var next = {
+    sets: patch.sets != null ? patch.sets : (cur.sets != null ? cur.sets : ex.sets),
+    rmin: patch.rmin != null ? patch.rmin : (cur.rmin != null ? cur.rmin : ex.rmin),
+    rmax: ("rmax" in patch) ? patch.rmax : (("rmax" in cur) ? cur.rmax : ex.rmax)
+  };
+  exSpec[exId] = next;
+  savePlan();
+  applyPlan();
+  Sync.pushPlan();
+}
+
+/** Klick auf den Hintergrund des Dialogs bricht ab — wie Escape. */
+function wireSpecUi(){
+  var dlg = document.getElementById("spec-dialog");
+  dlg.addEventListener("click", function(e){
+    if(e.target === dlg){
+      specCtx = null;
+      if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+    }
+  });
+  dlg.addEventListener("close", function(){ specCtx = null; });
+}
+
+/* ============================================================
+   10b. Übung tauschen
+   ------------------------------------------------------------
+   Der Slot im Trainingstag zeigt danach auf eine andere Übung.
+   Die ersetzte Übung bleibt mit ihrem Verlauf im POOL und ist im
+   Fortschritt unter "Ersetzte Übungen" weiter auswählbar. Ein
+   bereits bekannter Name wird wiederverwendet, damit beim
+   Zurücktauschen die alte Historie wieder zusammenfindet.
+   ============================================================ */
+function slugId(name){
+  var base = "cx-" + name.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+  if(base === "cx-") base = "cx-uebung";
+  var id = base, n = 2;
+  while(POOL[id]) id = base + "-" + (n++);
+  return id;
+}
+
+/** Nur innerhalb des aktiven Plans — sonst könnte ein Tausch versehentlich
+    die Historie einer gleichnamigen Übung aus einem ANDEREN Trainingsplan
+    übernehmen. */
+function findByName(name){
+  var key = name.trim().toLowerCase();
+  var ids = Object.keys(POOL);
+  for(var i=0;i<ids.length;i++){
+    var e = POOL[ids[i]];
+    if(e.planId === activePlanId && !e.empty && e.n && e.n.trim().toLowerCase() === key) return e;
+  }
+  return null;
+}
+
+/** Ersetzt die Übung im Slot. Gibt bei Problemen eine Meldung zurück, sonst null. */
+function swapExercise(dayId, oldId, rawName){
+  var name = String(rawName || "").trim().replace(/\s+/g, " ");
+  if(!name) return "Bitte einen Namen für die neue Übung eingeben.";
+  if(name.length > 40) return "Der Name ist zu lang (maximal 40 Zeichen).";
+
+  var day = dayById(dayId);
+  if(!day) return "Trainingstag nicht gefunden.";
+  var idx = day.ex.map(function(e){ return e.id; }).indexOf(oldId);
+  if(idx < 0) return "Übung nicht gefunden.";
+
+  var old = POOL[oldId];
+  if(name.toLowerCase() === old.n.trim().toLowerCase()) return "Das ist bereits die aktuelle Übung.";
+
+  for(var i=0;i<day.ex.length;i++){
+    if(i !== idx && day.ex[i].n.trim().toLowerCase() === name.toLowerCase()){
+      return "\u201E" + name + "\u201C steht schon in diesem Trainingstag.";
+    }
+  }
+
+  var existing = findByName(name);
+  var newId;
+  if(existing){
+    newId = existing.id;
+    existing.dayId = dayId;
+    if(POOL[newId].sets == null) POOL[newId].sets = old.sets;
+    if(POOL[newId].rmin == null) POOL[newId].rmin = old.rmin;
+    customEx[newId] = POOL[newId];
+  } else {
+    newId = slugId(name);
+    POOL[newId] = { id:newId, n:name, sets:old.sets, rmin:old.rmin, rmax:old.rmax,
+                    p:"", planTrend:null, dayId:dayId, planId:old.planId, bodyweight: !!old.bodyweight };
+    customEx[newId] = POOL[newId];
+  }
+
+  var ids = day.ex.map(function(e){ return e.id; });
+  ids[idx] = newId;
+  planOrder[dayId] = ids;
+  savePlan();
+  applyPlan();
+  Sync.pushPlan();
+  return null;
+}
+
+/** Setzt den Slot auf die Übung aus dem Originalplan zurück. */
+function restoreSlot(dayId, idx){
+  var day = dayById(dayId);
+  if(!day || !day.base[idx]) return "Kein Originaleintrag vorhanden.";
+  var ids = day.ex.map(function(e){ return e.id; });
+  ids[idx] = day.base[idx];
+  planOrder[dayId] = ids;
+  savePlan();
+  applyPlan();
+  Sync.pushPlan();
+  return null;
+}
+
+var swapCtx = null;
+
+function openSwap(dayId, exId){
+  swapCtx = { dayId:dayId, exId:exId, error:null };
+  renderSwap();
+  var dlg = document.getElementById("swap-dialog");
+  if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  var inp = document.getElementById("swap-input");
+  if(inp) setTimeout(function(){ inp.focus(); }, 60);
+}
+
+function closeSwap(){
+  var dlg = document.getElementById("swap-dialog");
+  if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  swapCtx = null;
+}
+
+function renderSwap(){
+  if(!swapCtx) return;
+  var body = document.getElementById("swap-dlg-body");
+  var lead = document.getElementById("swap-dlg-lead");
+  while(body.firstChild) body.removeChild(body.firstChild);
+
+  var day = dayById(swapCtx.dayId);
+  var ex  = POOL[swapCtx.exId];
+  if(!day || !ex){ closeSwap(); return; }
+  var idx = day.ex.map(function(e){ return e.id; }).indexOf(ex.id);
+
+  lead.textContent = "\u201E" + ex.n + "\u201C in " + day.name
+    + " ersetzen. Der bisherige Verlauf bleibt erhalten und ist im Fortschritt weiter abrufbar.";
+
+  if(swapCtx.error) body.appendChild(h("p", { class:"dlg-err", text:swapCtx.error }));
+
+  var label = h("label", { class:"swap-label", for:"swap-input", text:"Neue Übung" });
+  body.appendChild(label);
+
+  var inp = h("input", { class:"swap-input", id:"swap-input", type:"text", list:"swap-known",
+    autocomplete:"off", enterkeyhint:"done", maxlength:"40", placeholder:"Name der neuen Übung" });
+  body.appendChild(inp);
+
+  /* Bereits bekannte Übungen DES AKTIVEN PLANS vorschlagen — die Auswahl
+     einer davon führt ihre vorhandene Historie wieder mit dem Slot
+     zusammen. Planübergreifend würde das versehentlich Historie aus
+     einem anderen Trainingsplan in diesen Slot ziehen. */
+  var dl = h("datalist", { id:"swap-known" });
+  var seen = {};
+  day.ex.forEach(function(e){ seen[e.id] = true; });
+  Object.keys(POOL).forEach(function(id){
+    if(seen[id] || POOL[id].planId !== activePlanId || POOL[id].empty) return;
+    dl.appendChild(h("option", { value:POOL[id].n }));
+  });
+  body.appendChild(dl);
+
+  body.appendChild(h("p", { class:"dlg-note",
+    text:"Sätze und Wiederholungen (" + specText(ex) + ") werden übernommen." }));
+
+  function submit(){
+    var err = swapExercise(swapCtx.dayId, swapCtx.exId, inp.value);
+    if(err){ swapCtx.error = err; renderSwap(); return; }
+    var name = inp.value.trim().replace(/\s+/g, " ");
+    closeSwap();
+    rebuildAll();
+    toast("Getauscht: \u201E" + name + "\u201C");
+  }
+  inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); submit(); } });
+
+  var go = h("button", { class:"btn-line primary", type:"button", text:"Tauschen" });
+  go.addEventListener("click", submit);
+  body.appendChild(go);
+
+  var baseEx = POOL[day.base[idx]];
+  if(baseEx && baseEx.id !== ex.id){
+    var back = h("button", { class:"btn-line", type:"button",
+      text:"Original wiederherstellen: " + baseEx.n });
+    back.addEventListener("click", function(){
+      var err = restoreSlot(swapCtx.dayId, idx);
+      if(err){ swapCtx.error = err; renderSwap(); return; }
+      closeSwap();
+      rebuildAll();
+      toast("Wiederhergestellt: \u201E" + baseEx.n + "\u201C");
+    });
+    body.appendChild(back);
+  }
+}
+
+function wireSwapUi(){
+  document.getElementById("swap-cancel").addEventListener("click", closeSwap);
+  document.getElementById("swap-dialog").addEventListener("close", function(){ swapCtx = null; });
+}
+
+/* ============================================================
+   10c. Übung zu einem selbst angelegten Plan hinzufügen
+   ============================================================ */
+function buildAddSlotRow(day){
+  var row = h("button", { class:"ex-add-slot", type:"button",
+    "aria-label":"Neue Übung zu " + day.name + " hinzufügen" });
+  var pi = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2.2", "stroke-linecap":"round", "aria-hidden":"true" });
+  svg("path", { d:"M12 5v14M5 12h14" }, pi);
+  row.appendChild(pi);
+  row.appendChild(document.createTextNode("Übung hinzufügen"));
+  row.addEventListener("click", function(){ addSlotToDay(day); });
+  return row;
+}
+
+/** Fügt einen neuen leeren Slot an — persistiert nur in userPlans/customEx,
+    PLANS/POOL/DAYS werden danach komplett neu aus dieser Quelle gebaut. */
+function addSlotToDay(day){
+  var up = userPlans.filter(function(p){ return p.id === day.planId; })[0];
+  if(!up) return;
+  var ud = up.days.filter(function(d){ return d.id === day.id; })[0];
+  if(!ud) return;
+
+  var id = day.id + "-s" + (ud.base.length + 1);
+  while(POOL[id]) id = day.id + "-s" + Math.random().toString(36).slice(2, 6);
+  customEx[id] = { id:id, empty:true, dayId:day.id, planId:day.planId };
+  ud.base.push(id);
+  if(Array.isArray(planOrder[day.id])) planOrder[day.id].push(id);
+
+  savePlan();
+  rebuildPlanRegistry();
+  Sync.pushPlan();
+  rebuildAll();
+  openFillSlot(id);
+}
+
+var fillSlotCtx = null;
+
+function openFillSlot(exId){
+  if(!POOL[exId]) return;
+  fillSlotCtx = { exId:exId, error:null };
+  renderFillSlot();
+  var dlg = document.getElementById("fillslot-dialog");
+  if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  var inp = document.getElementById("fillslot-name");
+  if(inp) setTimeout(function(){ inp.focus(); }, 60);
+}
+
+function closeFillSlot(){
+  var dlg = document.getElementById("fillslot-dialog");
+  if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  fillSlotCtx = null;
+}
+
+function renderFillSlot(){
+  if(!fillSlotCtx) return;
+  var body = document.getElementById("fillslot-dlg-body");
+  var lead = document.getElementById("fillslot-dlg-lead");
+  while(body.firstChild) body.removeChild(body.firstChild);
+
+  var ex  = POOL[fillSlotCtx.exId];
+  var day = ex ? dayById(ex.dayId) : null;
+  if(!ex || !day){ closeFillSlot(); return; }
+
+  lead.textContent = "Neue Übung in " + day.name + ".";
+  if(fillSlotCtx.error) body.appendChild(h("p", { class:"dlg-err", text:fillSlotCtx.error }));
+
+  body.appendChild(h("label", { class:"swap-label", for:"fillslot-name", text:"Name" }));
+  var nameInp = h("input", { class:"swap-input", id:"fillslot-name", type:"text",
+    autocomplete:"off", enterkeyhint:"next", maxlength:"40", placeholder:"Name der Übung" });
+  body.appendChild(nameInp);
+
+  var fields = h("div", { class:"spec-fields" });
+  function numField(label, ref){
+    var wrap = h("label", { class:"spec-f" });
+    wrap.appendChild(h("span", { text:label }));
+    var inp = h("input", { type:"text", inputmode:"numeric", autocomplete:"off",
+      enterkeyhint:"done", maxlength:"2", "aria-label":label });
+    inp.addEventListener("input", function(){ inp.value = inp.value.replace(/[^0-9]/g, "").slice(0, 2); });
+    inp.addEventListener("focus", function(){ inp.select(); });
+    wrap.appendChild(inp);
+    fields.appendChild(wrap);
+    ref.push(inp);
+  }
+  var inputs = [];
+  numField("Sätze", inputs);
+  numField("Wdh. von", inputs);
+  fields.appendChild(h("span", { class:"spec-dash", text:"–" }));
+  numField("bis", inputs);
+  body.appendChild(fields);
+  body.appendChild(h("p", { class:"dlg-note", text:"Für eine feste Wiederholungszahl beide Felder gleich setzen." }));
+
+  function submit(){
+    var name = nameInp.value.trim().replace(/\s+/g, " ");
+    if(!name){ fillSlotCtx.error = "Bitte einen Namen eingeben."; renderFillSlot(); return; }
+    if(name.length > 40){ fillSlotCtx.error = "Der Name ist zu lang (maximal 40 Zeichen)."; renderFillSlot(); return; }
+    var dup = day.ex.some(function(e){ return e.id !== ex.id && !e.empty && e.n && e.n.trim().toLowerCase() === name.toLowerCase(); });
+    if(dup){ fillSlotCtx.error = "„" + name + "“ steht schon in diesem Trainingstag."; renderFillSlot(); return; }
+    var vals = inputs.map(function(i){ return parseInt(i.value, 10); });
+    if(vals.some(function(v){ return !isFinite(v) || v < 1 || v > 99; })){
+      fillSlotCtx.error = "Bitte Sätze und Wiederholungen zwischen 1 und 99 eingeben.";
+      renderFillSlot();
+      return;
+    }
+    var lo = Math.min(vals[1], vals[2]), hi = Math.max(vals[1], vals[2]);
+    var e = customEx[ex.id];
+    if(!e){ closeFillSlot(); return; }
+    delete e.empty;
+    e.n = name; e.sets = vals[0]; e.rmin = lo; e.rmax = hi > lo ? hi : null; e.p = "";
+    savePlan();
+    closeFillSlot();
+    rebuildPlanRegistry();
+    Sync.pushPlan();
+    rebuildAll();
+    toast("„" + name + "“ hinzugefügt");
+  }
+  nameInp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); inputs[0].focus(); inputs[0].select(); } });
+  inputs.forEach(function(inp){
+    inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); submit(); } });
+  });
+
+  var go = h("button", { class:"btn-line primary", type:"button", text:"Fertig" });
+  go.addEventListener("click", submit);
+  body.appendChild(go);
+  var cancel = h("button", { class:"btn-line", type:"button", text:"Abbrechen" });
+  cancel.addEventListener("click", closeFillSlot);
+  body.appendChild(cancel);
+}
+
+function wireFillSlotUi(){
+  document.getElementById("fillslot-dialog").addEventListener("close", function(){ fillSlotCtx = null; });
+}
+
+/* ============================================================
+   10d. Trainingsplan wechseln / neu anlegen
+   ============================================================ */
+function renderPlanBar(){
+  var bar = document.getElementById("plan-bar");
+  while(bar.firstChild) bar.removeChild(bar.firstChild);
+  PLANS.forEach(function(plan){
+    var b = h("button", { class:"plan-btn" + (plan.id === activePlanId ? " is-active" : ""),
+      type:"button", title:plan.name, "aria-pressed": plan.id === activePlanId ? "true" : "false",
+      text:plan.name });
+    b.addEventListener("click", function(){ if(plan.id !== activePlanId) switchPlan(plan.id); });
+    bar.appendChild(b);
+  });
+  var add = h("button", { class:"plan-btn-new", type:"button", "aria-label":"Neuen Trainingsplan anlegen" });
+  var pi = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor",
+    "stroke-width":"2.2", "stroke-linecap":"round", "aria-hidden":"true" });
+  svg("path", { d:"M12 5v14M5 12h14" }, pi);
+  add.appendChild(pi);
+  add.addEventListener("click", openNewPlan);
+  bar.appendChild(add);
+
+  var activeBtn = bar.querySelector(".plan-btn.is-active");
+  if(activeBtn) activeBtn.scrollIntoView({ inline:"nearest", block:"nearest" });
+}
+
+/** Day-ids sind planübergreifend eindeutig (mit der Plan-id vorangestellt),
+    deshalb genügt rebuildAll()s eigener Rücksprung-auf-ersten-Tag — ein
+    ui.tab aus dem alten Plan kann nie zufällig zu einem Tag des neuen
+    passen. "Fortschritt" bleibt ausgewählt, wenn man dort schon war. */
+function switchPlan(planId){
+  if(planId === activePlanId || !planById(planId)) return;
+  activePlanId = planId;
+  ui.activePlanId = planId;
+  DAYS = daysForActivePlan();
+  applyPlan();
+  hiddenSeries = {};
+  ui.metric = "day:" + DAYS[0].id;
+  saveUi();
+  renderPlanBar();
+  buildTabs();
+  rebuildAll();
+  window.scrollTo({ top:0, behavior:"auto" });
+}
+
+function slugText(s){
+  return String(s).toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 20) || "tag";
+}
+
+var newPlanCtx = null;
+
+function openNewPlan(){
+  newPlanCtx = { step:"name", name:"", dayCount:4, dayNames:[], slotCount:5, error:null };
+  renderNewPlan();
+  var dlg = document.getElementById("newplan-dialog");
+  if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+}
+
+function closeNewPlan(){
+  var dlg = document.getElementById("newplan-dialog");
+  if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  newPlanCtx = null;
+}
+
+/** Vierstufiger Assistent in EINEM Dialog (Name -> Tage/Woche -> Tagesnamen
+    -> Übungen je Tag) — jeder Schritt baut .dlg-body neu, wie renderSwap()
+    es für den Übungstausch schon macht. */
+function renderNewPlan(){
+  if(!newPlanCtx) return;
+  var body = document.getElementById("newplan-dlg-body");
+  var lead = document.getElementById("newplan-dlg-lead");
+  while(body.firstChild) body.removeChild(body.firstChild);
+  var c = newPlanCtx;
+  var focusEl = null;
+
+  if(c.error) body.appendChild(h("p", { class:"dlg-err", text:c.error }));
+
+  function numField(labelText, value){
+    var wrap = h("label", { class:"spec-f" });
+    wrap.appendChild(h("span", { text:labelText }));
+    var inp = h("input", { type:"text", inputmode:"numeric", autocomplete:"off",
+      enterkeyhint:"done", maxlength:"2", "aria-label":labelText });
+    inp.value = value != null ? String(value) : "";
+    inp.addEventListener("input", function(){ inp.value = inp.value.replace(/[^0-9]/g, "").slice(0, 2); });
+    inp.addEventListener("focus", function(){ inp.select(); });
+    wrap.appendChild(inp);
+    return { wrap:wrap, inp:inp };
+  }
+
+  function addActions(back, go, goLabel){
+    var row = h("div", { class:"dlg-actions" });
+    var backBtn = h("button", { class:"btn-line", type:"button", text: back ? "Zurück" : "Abbrechen" });
+    backBtn.addEventListener("click", back || closeNewPlan);
+    row.appendChild(backBtn);
+    var goBtn = h("button", { class:"btn-line primary", type:"button", text:goLabel });
+    goBtn.addEventListener("click", go);
+    row.appendChild(goBtn);
+    body.appendChild(row);
+  }
+
+  if(c.step === "name"){
+    lead.textContent = "Wie soll der neue Trainingsplan heissen?";
+    body.appendChild(h("label", { class:"swap-label", for:"newplan-name", text:"Name" }));
+    var nameInp = h("input", { class:"swap-input", id:"newplan-name", type:"text",
+      autocomplete:"off", enterkeyhint:"next", maxlength:"40", placeholder:"z. B. Push Pull Legs" });
+    nameInp.value = c.name;
+    body.appendChild(nameInp);
+    focusEl = nameInp;
+
+    function goName(){
+      var name = nameInp.value.trim().replace(/\s+/g, " ");
+      if(!name){ c.error = "Bitte einen Namen eingeben."; renderNewPlan(); return; }
+      if(name.length > 40){ c.error = "Der Name ist zu lang (maximal 40 Zeichen)."; renderNewPlan(); return; }
+      if(PLANS.some(function(p){ return p.name.trim().toLowerCase() === name.toLowerCase(); })){
+        c.error = "„" + name + "“ gibt es schon."; renderNewPlan(); return;
+      }
+      c.name = name; c.error = null; c.step = "days"; renderNewPlan();
+    }
+    nameInp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); goName(); } });
+    addActions(null, goName, "Weiter");
+
+  } else if(c.step === "days"){
+    lead.textContent = "Wie viele Trainingstage pro Woche hat „" + c.name + "“?";
+    var f = numField("Trainingstage", c.dayCount);
+    body.appendChild(h("div", { class:"spec-fields" }, [ f.wrap ]));
+    focusEl = f.inp;
+
+    function goDays(){
+      var n = parseInt(f.inp.value, 10);
+      if(!isFinite(n) || n < 1 || n > 10){ c.error = "Bitte eine Zahl zwischen 1 und 10 eingeben."; renderNewPlan(); return; }
+      var old = c.dayNames;
+      c.dayNames = [];
+      for(var i=0;i<n;i++) c.dayNames.push(old[i] || "");
+      c.dayCount = n; c.error = null; c.step = "daynames"; renderNewPlan();
+    }
+    f.inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); goDays(); } });
+    addActions(function(){ c.step = "name"; renderNewPlan(); }, goDays, "Weiter");
+
+  } else if(c.step === "daynames"){
+    lead.textContent = "Wie heissen die Trainingstage?";
+    var inputs = [];
+    c.dayNames.forEach(function(val, i){
+      body.appendChild(h("label", { class:"swap-label", text:"Tag " + (i+1) }));
+      var inp = h("input", { class:"swap-input", type:"text", autocomplete:"off",
+        enterkeyhint: i === c.dayNames.length - 1 ? "done" : "next", maxlength:"30", placeholder:"z. B. Push" });
+      inp.value = val;
+      body.appendChild(inp);
+      inputs.push(inp);
+    });
+    focusEl = inputs[0];
+
+    function goNames(){
+      var names = inputs.map(function(inp){ return inp.value.trim().replace(/\s+/g, " "); });
+      if(names.some(function(n){ return !n; })){ c.error = "Bitte für jeden Tag einen Namen eingeben."; renderNewPlan(); return; }
+      c.dayNames = names; c.error = null; c.step = "slots"; renderNewPlan();
+    }
+    inputs.forEach(function(inp, i){
+      inp.addEventListener("keydown", function(e){
+        if(e.key !== "Enter") return;
+        e.preventDefault();
+        if(i < inputs.length - 1) inputs[i+1].focus(); else goNames();
+      });
+    });
+    /* Getipptes sichern, auch wenn "Zurück" statt "Weiter" gedrückt wird —
+       sonst gehen bereits eingegebene Tagesnamen beim Ändern der Tageszahl
+       verloren, weil nur goNames() (also "Weiter") sie sonst übernimmt. */
+    addActions(function(){
+      c.dayNames = inputs.map(function(inp){ return inp.value; });
+      c.step = "days"; renderNewPlan();
+    }, goNames, "Weiter");
+
+  } else if(c.step === "slots"){
+    lead.textContent = "Wie viele Übungen soll jeder Tag anfangs haben?";
+    var f2 = numField("Übungen pro Tag", c.slotCount);
+    body.appendChild(h("div", { class:"spec-fields" }, [ f2.wrap ]));
+    body.appendChild(h("p", { class:"dlg-note",
+      text:"Lässt sich jederzeit erweitern — jede Übung wird einzeln über das Plus in der leeren Box ausgefüllt." }));
+    focusEl = f2.inp;
+
+    function createPlan(){
+      var n = parseInt(f2.inp.value, 10);
+      if(!isFinite(n) || n < 1 || n > 20){ c.error = "Bitte eine Zahl zwischen 1 und 20 eingeben."; renderNewPlan(); return; }
+      c.slotCount = n; c.error = null;
+      commitNewPlan(c);
+    }
+    f2.inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); createPlan(); } });
+    addActions(function(){ c.step = "daynames"; renderNewPlan(); }, createPlan, "Trainingsplan erstellen");
+  }
+
+  if(focusEl) setTimeout(function(){ focusEl.focus(); if(focusEl.select) focusEl.select(); }, 60);
+}
+
+function commitNewPlan(c){
+  var planId = "plan-" + Math.random().toString(36).slice(2, 8);
+  while(planById(planId)) planId = "plan-" + Math.random().toString(36).slice(2, 8);
+
+  var usedDaySlugs = {};
+  var days = c.dayNames.map(function(dayName){
+    var base = slugText(dayName), slug = base, n = 2;
+    while(usedDaySlugs[slug]) slug = base + "-" + (n++);
+    usedDaySlugs[slug] = true;
+    var dayId = planId + "-" + slug;
+
+    var slotIds = [];
+    for(var i=0;i<c.slotCount;i++){
+      var sid = dayId + "-s" + (i+1);
+      slotIds.push(sid);
+      customEx[sid] = { id:sid, empty:true, dayId:dayId, planId:planId };
+    }
+    return { id:dayId, name:dayName, base:slotIds };
+  });
+
+  userPlans.push({ id:planId, name:c.name, days:days });
+  savePlan();
+
+  activePlanId = planId;
+  ui.activePlanId = planId;
+  rebuildPlanRegistry();
+  ui.metric = "day:" + DAYS[0].id;
+  saveUi();
+  Sync.pushPlan();
+
+  closeNewPlan();
+  renderPlanBar();
+  buildTabs();
+  rebuildAll();
+  window.scrollTo({ top:0, behavior:"auto" });
+  toast("„" + c.name + "“ angelegt");
+}
+
+function wireNewPlanUi(){
+  document.getElementById("newplan-dialog").addEventListener("close", function(){ newPlanCtx = null; });
+}
+
+/* ============================================================
+   11. Geräte-Sync — Cloud Firestore mit Offline-Persistenz
+   ------------------------------------------------------------
+   Gespeicherte Einheiten liegen unter users/{uid}/sessions und
+   werden zwischen Handy und PC abgeglichen. Der lokale
+   IndexedDB-Cache von Firestore hält die App auch ohne Netz
+   nutzbar; Schreibvorgänge laufen nach, sobald wieder Netz da
+   ist. Ohne Konfiguration bleibt die App rein lokal.
+   ============================================================ */
+const K_FBCFG = "trainingsplan.v1.firebaseConfig";
+const SDK_URL = "./vendor/firebase.js";
+
+const Sync = (function(){
+  var st = { status:"unconfigured", email:null, error:null, pending:false };
+  var M = null, unsub = null, unsubPlan = null, uid = null;
+
+  function readConfig(){
+    var local = store.read(K_FBCFG, null);
+    if(local && local.apiKey && local.projectId) return local;
+    var g = window.FIREBASE_CONFIG;
+    if(g && g.apiKey && g.projectId) return g;
+    return null;
+  }
+
+  function set(status, extra){
+    st.status = status;
+    if(status !== "error") st.error = null;
+    if(extra) for(var k in extra) st[k] = extra[k];
+    renderChip();
+    if(document.getElementById("sync-dialog").open) renderDialog();
+  }
+
+  async function boot(){
+    var conf = readConfig();
+    if(!conf){ set("unconfigured"); return; }
+    set("loading");
+    try {
+      var F = await import(SDK_URL);
+
+      var app = F.getApps().length ? F.getApp() : F.initializeApp(conf);
+      var db  = F.initializeFirestore(app, {
+        localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() })
+      });
+      var auth = F.getAuth(app);
+
+      /* Lokaler Firebase-Emulator zum Testen — greift ausschliesslich auf
+         localhost und nur mit ?emulator=1 in der Adresse. */
+      if(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]emulator=1/.test(location.search)){
+        F.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings:true });
+        F.connectFirestoreEmulator(db, "127.0.0.1", 8080);
+      }
+
+      M = { app:app, db:db, auth:auth, F:F };
+
+      try { await F.getRedirectResult(auth); } catch(e){}
+
+      F.onAuthStateChanged(auth, function(user){
+        if(unsub){ unsub(); unsub = null; }
+        if(unsubPlan){ unsubPlan(); unsubPlan = null; }
+        if(!user){ uid = null; set("signed-out", { email:null }); return; }
+        uid = user.uid;
+        set("syncing", { email:user.email || user.displayName || "angemeldet", error:null });
+        pushAll().then(pushPlan).then(subscribe).catch(function(e){ set("error", { error:describe(e) }); });
+      });
+    } catch(e){
+      set("error", { error: navigator.onLine ? describe(e) : "Offline — Sync startet, sobald wieder Netz da ist." });
+    }
+  }
+
+  function describe(e){
+    var c = (e && e.code) || "";
+    if(c === "auth/unauthorized-domain") return "Diese Domain ist in Firebase nicht freigegeben. In der Firebase Console unter Authentication → Settings → Authorized domains eintragen: " + location.hostname;
+    if(c === "auth/operation-not-allowed") return "Google-Anmeldung ist im Firebase-Projekt nicht aktiviert (Authentication → Sign-in method).";
+    if(c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request") return "Anmeldung abgebrochen.";
+    if(c === "permission-denied") return "Zugriff verweigert — bitte die Firestore-Regeln aus firestore.rules veröffentlichen.";
+    if(c === "failed-precondition") return "Firestore ist im Projekt noch nicht angelegt (Firestore Database → Create database).";
+    return (e && e.message) ? String(e.message) : "Unbekannter Fehler";
+  }
+
+  function ref(s){ return M.F.doc(M.db, "users", uid, "sessions", s.dayId + "_" + s.date); }
+
+  function push(s){
+    if(!M || !uid) return Promise.resolve();
+    return M.F.setDoc(ref(s), {
+      date:s.date, dayId:s.dayId, entries:s.entries, updatedAt: M.F.serverTimestamp()
+    }, { merge:true });
+  }
+
+  function removeSession(s){
+    if(!M || !uid) return Promise.resolve();
+    return M.F.deleteDoc(ref(s));
+  }
+
+  function removeEntry(s, exId){
+    if(!M || !uid) return Promise.resolve();
+    var patch = { entries:{} };
+    patch.entries[exId] = M.F.deleteField();
+    return M.F.setDoc(ref(s), patch, { merge:true });
+  }
+
+  function pushAll(){
+    if(!M || !uid) return Promise.resolve();
+    return Promise.all(sessions.map(function(s){ return push(s).catch(function(){}); }));
+  }
+
+  function planRef(){ return M.F.doc(M.db, "users", uid, "state", "plan"); }
+
+  function pushPlan(){
+    if(!M || !uid) return Promise.resolve();
+    return M.F.setDoc(planRef(), {
+      order: planOrder, exercises: customEx, spec: exSpec, plans: userPlans,
+      updatedAt: M.F.serverTimestamp()
+    }, { merge:true });
+  }
+
+  /** activePlanId bleibt bewusst rein lokal (wie ui.tab) — ein anderes
+      Gerät legt hier keinen Planwechsel fest. Existiert der aktive Plan
+      nach dem Merge nicht mehr, fällt daysForActivePlan() auf MinMax
+      zurück. */
+  function subscribePlan(){
+    if(!M || !uid) return;
+    unsubPlan = M.F.onSnapshot(planRef(), function(snap){
+      var v = snap.data();
+      if(!v) return;
+      if(v.exercises && typeof v.exercises === "object") customEx = v.exercises;
+      if(v.order && typeof v.order === "object") planOrder = v.order;
+      if(v.spec && typeof v.spec === "object") exSpec = v.spec;
+      if(Array.isArray(v.plans)){
+        userPlans = v.plans.filter(function(p){
+          return p && typeof p.id === "string" && typeof p.name === "string" && Array.isArray(p.days);
+        });
+      }
+      store.write(K_PLAN, planOrder);
+      store.write(K_CUSTOMEX, customEx);
+      store.write(K_EXSPEC, exSpec);
+      store.write(K_PLANS, userPlans);
+      rebuildPlanRegistry();
+      renderPlanBar();
+      buildTabs();
+      rebuildAll();
+    }, function(){});
+  }
+
+  function subscribe(){
+    if(!M || !uid) return;
+    subscribePlan();
+    var col = M.F.collection(M.db, "users", uid, "sessions");
+    unsub = M.F.onSnapshot(col, function(snap){
+      var remote = [];
+      snap.forEach(function(d){
+        var v = d.data();
+        if(v && typeof v.date === "string" && v.dayId && v.entries) {
+          remote.push({ date:v.date, dayId:v.dayId, entries:v.entries });
+        }
+      });
+      sessions = remote;
+      saveSessions();
+      st.pending = snap.metadata.hasPendingWrites;
+      set(st.pending ? "pending" : "ready", { error:null });
+      refreshFromData();
+      renderLog();
+    }, function(err){
+      set("error", { error:describe(err) });
+    });
+  }
+
+  return {
+    state: st,
+    configured: function(){ return !!readConfig(); },
+    init: boot,
+    push: function(s){ push(s).catch(function(){}); },
+    pushPlan: function(){ if(M && uid) pushPlan().catch(function(){}); },
+    removeSession: function(s){ removeSession(s).catch(function(){}); },
+    removeEntry: function(s, exId){ removeEntry(s, exId).catch(function(){}); },
+    saveConfig: function(text){
+      var obj;
+      try {
+        var t = String(text).trim().replace(/^const\s+firebaseConfig\s*=\s*/, "").replace(/;+\s*$/, "");
+        obj = (new Function("return (" + t + ")"))();
+      } catch(e){ return "Konnte nicht gelesen werden — bitte das komplette firebaseConfig-Objekt einfügen."; }
+      if(!obj || !obj.apiKey || !obj.projectId) return "Es fehlen apiKey oder projectId.";
+      store.write(K_FBCFG, obj);
+      boot();
+      return null;
+    },
+    clearConfig: function(){
+      store.write(K_FBCFG, null);
+      if(unsub){ unsub(); unsub = null; }
+      if(unsubPlan){ unsubPlan(); unsubPlan = null; }
+      M = null; uid = null;
+      set("unconfigured", { email:null, error:null });
+    },
+    signIn: async function(){
+      if(!M) return;
+      try {
+        await M.F.signInWithPopup(M.auth, new M.F.GoogleAuthProvider());
+      } catch(e){
+        var c = (e && e.code) || "";
+        if(c === "auth/popup-blocked" || c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request"){
+          try { await M.F.signInWithRedirect(M.auth, new M.F.GoogleAuthProvider()); return; }
+          catch(e2){ set("error", { error:describe(e2) }); return; }
+        }
+        set("error", { error:describe(e) });
+      }
+    },
+    signOut: async function(){
+      if(!M) return;
+      if(unsub){ unsub(); unsub = null; }
+      if(unsubPlan){ unsubPlan(); unsubPlan = null; }
+      try { await M.F.signOut(M.auth); } catch(e){}
+    }
+  };
+})();
+
+const SYNC_CHIP = {
+  unconfigured: { dot:"",        label:"Sync aus" },
+  loading:      { dot:"pending", label:"Lädt …" },
+  "signed-out": { dot:"pending", label:"Anmelden" },
+  syncing:      { dot:"pending", label:"Sync …" },
+  pending:      { dot:"pending", label:"Wartet" },
+  ready:        { dot:"ok",      label:"Sync" },
+  error:        { dot:"err",     label:"Sync-Fehler" }
+};
+
+function renderChip(){
+  var meta = SYNC_CHIP[Sync.state.status] || SYNC_CHIP.unconfigured;
+  document.getElementById("sync-dot").className = "sync-dot " + meta.dot;
+  document.getElementById("sync-label").textContent = meta.label;
+  document.getElementById("sync-chip").setAttribute("aria-label", "Geräte-Sync: " + meta.label);
+}
+
+/* Schritt-für-Schritt-Anleitung. Die Beschriftungen der Firebase-Konsole
+   können sich ändern; deshalb steht überall dabei, wo der Punkt sitzt. */
+const SETUP_STEPS = [
+  { t:"Projekt anlegen", d:[
+    "console.firebase.google.com öffnen, mit dem Google-Konto anmelden.",
+    "„Projekt erstellen“ → Name vergeben, z. B. trainingsplan.",
+    "Google Analytics kannst du abwählen — wird nicht gebraucht.",
+    "Auf „Projekt erstellen“ klicken und warten, bis die Übersicht erscheint."
+  ]},
+  { t:"Firestore-Datenbank anlegen", d:[
+    "Linke Seitenleiste → unter „Projektverknüpfungen“ auf „Firestore“.",
+    "Fehlt der Eintrag: „Produktkategorien“ → „Datenbanken und Speicher“ → Firestore Database.",
+    "Erscheint ein Button „Datenbank erstellen“, ist sie noch nicht angelegt.",
+    "Standort: eur3 (europe-west) — lässt sich später NICHT mehr ändern.",
+    "Modus: „Im Produktionsmodus starten“ (nicht Testmodus).",
+    "„Erstellen“ — danach erscheint ein leerer Datenbrowser."
+  ]},
+  { t:"Zugriffsregeln veröffentlichen", d:[
+    "In der Firestore-Ansicht oben auf den Reiter „Regeln“ (Rules).",
+    "Den kompletten vorhandenen Text markieren und löschen.",
+    "Inhalt der Datei firestore.rules aus dem Repo einfügen.",
+    "ACHTUNG: Hier gehört NICHT die firebaseConfig hin. Die erste Zeile muss rules_version = '2'; lauten.",
+    "Button „Veröffentlichen“. Ohne diesen Schritt endet jeder Zugriff mit „permission-denied“."
+  ]},
+  { t:"Google-Anmeldung aktivieren", d:[
+    "Seitenleiste → „Authentication“ → „Jetzt starten“.",
+    "Reiter „Sign-in method“ → in der Liste „Google“ anklicken.",
+    "Schalter auf „Aktivieren“, Support-E-Mail auswählen, „Speichern“."
+  ]},
+  { t:"Domain freigeben", d:[
+    "Authentication → Reiter „Einstellungen“ → links „Autorisierte Domains“.",
+    "„Domain hinzufügen“ → genau eintragen: " + location.hostname,
+    "Ohne https:// und ohne Pfad. localhost und zwei firebaseapp-Einträge stehen dort schon."
+  ]},
+  { t:"Konfiguration holen", d:[
+    "Seitenleiste → „Einstellungen“ (Zahnrad) → „Projekteinstellungen“.",
+    "Runterscrollen bis „Meine Apps“. Gibt es dort noch keine App: Symbol </> (Web) anklicken, Spitznamen vergeben, Firebase Hosting NICHT ankreuzen, „App registrieren“.",
+    "Bei der Web-App unter „SDK-Einrichtung und -Konfiguration“ auf „Konfiguration“ umschalten.",
+    "Angezeigt wird ein Block const firebaseConfig = { … };",
+    "Nur die geschweifte Klammer samt Inhalt kopieren — von { bis } — und unten einfügen."
+  ]}
+];
+
+function buildSetupGuide(){
+  var box = h("div", { class:"guide" });
+  SETUP_STEPS.forEach(function(step, i){
+    var det = h("details", { class:"guide-step" });
+    if(i >= 3) det.open = true;
+    var sum = h("summary");
+    sum.appendChild(h("span", { class:"guide-num", text:String(i + 1) }));
+    sum.appendChild(h("span", { class:"guide-t", text:step.t }));
+    det.appendChild(sum);
+    var ul = document.createElement("ul");
+    step.d.forEach(function(line){ ul.appendChild(h("li", { text:line })); });
+    det.appendChild(ul);
+    box.appendChild(det);
+  });
+  box.appendChild(h("p", { class:"dlg-note",
+    text:"Danach unten einfügen und speichern. Der Chip springt auf „Anmelden“ — dort mit demselben Google-Konto anmelden, auf jedem Gerät." }));
+  return box;
+}
+
+function renderDialog(){
+  var body = document.getElementById("sync-dlg-body");
+  var lead = document.getElementById("sync-dlg-lead");
+  while(body.firstChild) body.removeChild(body.firstChild);
+
+  var s = Sync.state;
+
+  if(s.error){
+    body.appendChild(h("p", { class:"dlg-err", text:s.error }));
+  }
+
+  if(s.status === "unconfigured"){
+    lead.textContent = "Noch nicht eingerichtet — die Daten liegen nur auf diesem Gerät. Für den Abgleich zwischen Handy und PC einmalig ein kostenloses Firebase-Projekt anlegen.";
+    body.appendChild(buildSetupGuide());
+
+    var ta = h("textarea", { spellcheck:"false", "aria-label":"Firebase-Konfiguration",
+      placeholder:'{\n  "apiKey": "…",\n  "authDomain": "…",\n  "projectId": "…",\n  "appId": "…"\n}' });
+    body.appendChild(ta);
+    var btn = h("button", { class:"btn-line primary", type:"button", text:"Konfiguration speichern" });
+    btn.addEventListener("click", function(){
+      var err = Sync.saveConfig(ta.value);
+      if(err){ Sync.state.error = err; renderDialog(); }
+    });
+    body.appendChild(btn);
+    return;
+  }
+
+  if(s.status === "loading"){
+    lead.textContent = "Verbindung wird aufgebaut …";
+    return;
+  }
+
+  if(s.status === "signed-out"){
+    lead.textContent = "Mit Google anmelden — danach sind die gespeicherten Einheiten auf allen Geräten identisch, die mit demselben Konto angemeldet sind.";
+    var bIn = h("button", { class:"btn-line primary", type:"button", text:"Mit Google anmelden" });
+    bIn.addEventListener("click", function(){ Sync.signIn(); });
+    body.appendChild(bIn);
+    var bReset = h("button", { class:"btn-line", type:"button", text:"Konfiguration zurücksetzen" });
+    bReset.addEventListener("click", function(){ Sync.clearConfig(); });
+    body.appendChild(bReset);
+    return;
+  }
+
+  lead.textContent = s.status === "ready"
+    ? "Alle gespeicherten Einheiten werden mit deinem Konto abgeglichen."
+    : s.status === "pending"
+      ? "Änderungen sind lokal gesichert und werden übertragen, sobald wieder Netz da ist."
+      : "Wird abgeglichen …";
+
+  var dl = document.createElement("dl");
+  [["Konto", s.email || "—"], ["Einheiten", String(sessions.length)],
+   ["Status", (SYNC_CHIP[s.status] || {}).label || "—"]].forEach(function(pair){
+    var row = h("div", { class:"dlg-row" });
+    row.appendChild(h("dt", { text:pair[0] }));
+    row.appendChild(h("dd", { text:pair[1] }));
+    dl.appendChild(row);
+  });
+  body.appendChild(dl);
+
+  var bOut = h("button", { class:"btn-line", type:"button", text:"Abmelden" });
+  bOut.addEventListener("click", function(){ Sync.signOut(); });
+  body.appendChild(bOut);
+}
+
+function wireSyncUi(){
+  var dlg = document.getElementById("sync-dialog");
+  document.getElementById("sync-chip").addEventListener("click", function(){
+    renderDialog();
+    if(typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open","");
+  });
+  document.getElementById("sync-close").addEventListener("click", function(){
+    if(typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open");
+  });
+  window.addEventListener("online", function(){
+    if(Sync.state.status === "error" && Sync.configured()) Sync.init();
+  });
+}
+
+/* ============================================================
+   12. Navigation & Bootstrap
+   ============================================================ */
+const TAB_ICONS = {
+  total:   ["M12 3v18","M5 8h14","M5 16h14"],
+  upper:   ["M4 9v6","M20 9v6","M7 7v10","M17 7v10","M7 12h10"],
+  lower:   ["M7 4v6a5 5 0 0 0 10 0V4","M9 20h6","M12 15v5"],
+  arms:    ["M6 6a3 3 0 0 1 3 3v3a3 3 0 0 1-6 0V9","M18 6a3 3 0 0 0-3 3v3a3 3 0 0 0 6 0V9","M9 12h6"],
+  progress:["M4 19h16","M6 15l4-5 3 3 5-7"],
+  /* Tage selbst angelegter Pläne haben keinen eigenen Icon-Eintrag. */
+  default: ["M4 12h16","M7 8v8","M17 8v8"]
+};
+
+function buildTabs(){
+  var bar = document.querySelector(".tabbar");
+  while(bar.firstChild) bar.removeChild(bar.firstChild);
+  var items = DAYS.map(function(d){ return { id:d.id, label:d.short }; });
+  items.push({ id:"progress", label:"Fortschritt" });
+
+  items.forEach(function(it){
+    var b = h("button", { type:"button", role:"tab", id:"tab-"+it.id, "aria-controls":"panel-"+it.id, "aria-selected":"false" });
+    var ic = svg("svg", { viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true" });
+    (TAB_ICONS[it.id] || TAB_ICONS.default).forEach(function(d){ svg("path", { d:d }, ic); });
+    b.appendChild(ic);
+    b.appendChild(h("span", { text:it.label }));
+    b.addEventListener("click", function(){
+      showTab(it.id);
+      window.scrollTo({ top:0, behavior:"auto" });
+    });
+    bar.appendChild(b);
+  });
+}
+
+function showTab(id){
+  document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("is-active", v.getAttribute("data-view") === id); });
+  document.querySelectorAll(".tabbar button").forEach(function(b){ b.setAttribute("aria-selected", b.id === "tab-"+id ? "true" : "false"); });
+  ui.tab = id; saveUi();
+  if(id === "progress"){ renderProgress(); renderLog(); }
+}
+
+/** Aktualisiert die Ansicht aus den Daten, ohne das DOM neu zu bauen —
+    damit ein eintreffender Sync keine laufende Eingabe zerstört. */
+function refreshFromData(){
+  DAYS.forEach(function(day){
+    var view = document.querySelector('.view[data-view="' + day.id + '"]');
+    if(!view) return;
+    var lastS = lastSessionOf(day.id);
+    var meta = view.querySelector(".day-meta");
+    if(meta){
+      meta.textContent = lastS ? "Zuletzt " + DF_LONG.format(isoToDate(lastS.date)) : "Noch kein Training erfasst";
+    }
+    day.ex.forEach(function(e){
+      refreshHistory(e.id);
+      var inp = view.querySelector('.ex[data-ex="' + CSS.escape(e.id) + '"] input');
+      if(inp && document.activeElement !== inp){
+        var w = lastWeight(e.id);
+        inp.placeholder = w != null ? fmtKg(w) : "0";
+      }
+    });
+    updateSaveBar(day.id);
+  });
+  renderProgress();
+}
+
+function rebuildAll(){
+  var main = document.getElementById("main");
+  while(main.firstChild) main.removeChild(main.firstChild);
+  DAYS.forEach(function(d){ main.appendChild(buildDayView(d)); });
+  main.appendChild(buildProgressView());
+  DAYS.forEach(function(d){ updateSaveBar(d.id); });
+  renderLog();
+  showTab(ui.tab && (DAYS.some(function(d){ return d.id === ui.tab; }) || ui.tab === "progress") ? ui.tab : DAYS[0].id);
+  renderProgress();
+}
+
+/* Die Plan-Vorgabe "+" (z. B. HipThrust 110 kg +) steht als Hinweis in der
+   Karte, wird aber NICHT in den Schalter vorbelegt: eine Vorauswahl würde
+   sonst als Eingabe zählen und die Übung in jede gespeicherte Einheit
+   schreiben, auch wenn sie gar nicht trainiert wurde. */
+
+/* rebuildPlanRegistry() beim Laden von userPlans (Abschnitt 2) hat DAYS
+   bereits samt applyPlan() aufgebaut — hier nur noch die Oberfläche. */
+renderPlanBar();
+buildTabs();
+wireSyncUi();
+wireSwapUi();
+wireSpecUi();
+wireFillSlotUi();
+wireNewPlanUi();
+renderChip();
+rebuildAll();
+Sync.init();
+
+if(!store.available) toast("Speicher nicht verfügbar — Daten gehen beim Schließen verloren");
+
+var resizeTimer = null;
+window.addEventListener("resize", function(){
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(function(){
+    if(ui.tab === "progress") renderProgress();
+  }, 150);
+});
+
+if("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+})();
+</script>
+</body>
+</html>
