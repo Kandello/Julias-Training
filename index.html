@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>MinMax Workout — Trainingsdokumentation</title>
+<title>Julias Trainingsplan — Trainingsdokumentation</title>
 <meta name="description" content="Trainingsdokumentation: Gewichte erfassen, Tendenz festlegen, Fortschritt verfolgen.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -721,45 +721,44 @@ tbody td.na{color:var(--muted)}
 /* ============================================================
    1. Trainingsplan — Reihenfolge exakt wie im Plan
    ============================================================ */
+/* Julias eigener Trainingsplan (aus PDF übernommen). Wiederholungen: wo die
+   Vorlage je Satz denselben Wert hatte, steht er einheitlich als rmin mit
+   rmax:null (feste Zahl statt Spanne). Tag "Push 2" hatte Satz 1 abweichend
+   bei 8 statt 12 Wiederholungen — auf Wunsch einheitlich auf 8 gesetzt.
+   Gewichte bewusst leer (p:""), RiR/Pause aus der Vorlage werden in dieser
+   App nicht erfasst. */
 const BASE_DAYS = [
-  { id:"total", name:"Total Body", short:"Total", ex:[
-    { id:"tb-lying-leg-curl",       n:"LyingLegCurl",         sets:2, rmin:6, rmax:8,  p:"55 kg" },
-    { id:"tb-any-squat",            n:"AnySquat",             sets:2, rmin:6, rmax:8,  p:"2×13,75 kg" },
-    { id:"tb-barbell-incline-press",n:"BarbellInclinePress",  sets:2, rmin:6, rmax:8,  p:"2×23,75 kg" },
-    { id:"tb-incline-db-y-raise",   n:"InclineDB Y-Raise",    sets:1, rmin:8, rmax:10, p:"9 kg" },
-    { id:"tb-pullups",              n:"PullUps",              sets:2, rmin:6, rmax:8,  p:"Körpergewicht", bodyweight:true },
-    { id:"tb-standing-calf-raise",  n:"StandingCalfRaise",    sets:1, rmin:6, rmax:8,  p:"2×70 kg" },
-    /* Id bleibt "ub-..." (von Upper Body hierher verschoben) — die id ist
-       der Schlüssel, unter dem der bisherige Verlauf in sessions/Firestore
-       liegt; ein neuer Name hätte diesen Verlauf abgeschnitten. */
-    { id:"ub-crunch-machine",       n:"CrunchMachine",        sets:2, rmin:6, rmax:8,  p:"60 kg" }
+  { id:"push1", name:"Push", short:"Push", ex:[
+    { id:"p1-freihantel-brust",  n:"Freihantel-Brust",           sets:4, rmin:12, rmax:null, p:"" },
+    { id:"p1-schulterdruecken",  n:"Schulterdrücken im Sitzen",  sets:4, rmin:12, rmax:null, p:"" },
+    { id:"p1-flys-brust",        n:"Flys für die Brust",         sets:3, rmin:12, rmax:null, p:"" },
+    { id:"p1-seitheben",         n:"Seitheben",                  sets:3, rmin:12, rmax:null, p:"" },
+    { id:"p1-ueberkopf-trizeps", n:"Überkopf Kabel-Trizeps",     sets:3, rmin:12, rmax:null, p:"" },
+    { id:"p1-bauch",             n:"Julias Bauchübung :)",       sets:4, rmin:12, rmax:null, p:"" }
   ]},
-  { id:"upper", name:"Upper Body", short:"Upper", ex:[
-    { id:"ub-close-grip-latzug",    n:"CloseGripLatzug",      sets:2, rmin:8, rmax:10, p:"90 kg" },
-    { id:"ub-smith-machine-shrug",  n:"SmithMachineShrug",    sets:2, rmin:6, rmax:8,  p:"100 kg" },
-    { id:"ub-chest-supported-tbar", n:"ChestSupported TbarRow",sets:2, rmin:8, rmax:10,p:"55 kg" },
-    { id:"ub-machine-chest-press",  n:"MachineChestPress",    sets:2, rmin:8, rmax:10, p:"95 kg" },
-    { id:"ub-high-cable-lat-raise", n:"HighCableLateralRaise",sets:2, rmin:8, rmax:10, p:"37 kg" },
-    { id:"ub-face-pulls",           n:"FacePulls",            sets:2, rmin:8, rmax:10, p:"" },
-    { id:"ub-1arm-reverse-pec-deck",n:"1ArmReversePecDeck",   sets:1, rmin:8, rmax:10, p:"50 kg" }
+  { id:"pull", name:"Pull", short:"Pull", ex:[
+    { id:"pu-kabelrudern-eng",   n:"enges Kabel-Rudern im Sitzen",  sets:4, rmin:12, rmax:null, p:"" },
+    { id:"pu-latzug-ueberzuege", n:"Überzüge am Kabel (Latzug)",    sets:4, rmin:12, rmax:null, p:"" },
+    { id:"pu-reverse-flys",      n:"Reverse Flys",                 sets:3, rmin:12, rmax:null, p:"" },
+    { id:"pu-einarm-rudern",     n:"Einarmiges Rudern",             sets:3, rmin:12, rmax:null, p:"" },
+    { id:"pu-sz-curls",          n:"SZ-Curls für den Bizeps",       sets:2, rmin:12, rmax:null, p:"" },
+    { id:"pu-hammer-curls",      n:"Hammer Curls (Freihanteln)",    sets:2, rmin:12, rmax:null, p:"" }
   ]},
-  { id:"lower", name:"Lower Body", short:"Lower", ex:[
-    { id:"lb-kniebeugen",           n:"Kniebeugen",           sets:3, rmin:10, rmax:null,   p:"110 kg" },
-    { id:"lb-barbell-dl",           n:"Barbell DL",           sets:2, rmin:8, rmax:10, p:"100 kg" },
-    { id:"lb-hip-thrust",           n:"HipThrust",            sets:2, rmin:6, rmax:8,  p:"110 kg", planTrend:"up" },
-    { id:"lb-standing-calf-raise",  n:"StandingCalfRaise",    sets:2, rmin:8, rmax:10, p:"2×65 kg" },
-    { id:"lb-leg-extensions",       n:"LegExtensions",        sets:2, rmin:8, rmax:10, p:"90 kg" },
-    { id:"lb-leg-press",            n:"LegPress",             sets:1, rmin:6, rmax:8,  p:"189 kg", retired:true }
+  { id:"push2", name:"Push 2", short:"Push 2", ex:[
+    { id:"p2-bankdruecken",      n:"Bankdrücken / Maschine", sets:4, rmin:8, rmax:null, p:"" },
+    { id:"p2-aufrechtes-rudern", n:"aufrechtes Rudern",      sets:4, rmin:8, rmax:null, p:"" },
+    { id:"p2-flys-brust",        n:"Flys für die Brust",     sets:3, rmin:8, rmax:null, p:"" },
+    { id:"p2-monkey-shrugs",     n:"Monkey Shrugs",          sets:3, rmin:8, rmax:null, p:"" },
+    { id:"p2-kabel-trizeps",     n:"Kabel-Trizeps",          sets:3, rmin:8, rmax:null, p:"" },
+    { id:"p2-bauch-andere",      n:"andere Bauchübung",      sets:3, rmin:8, rmax:null, p:"" }
   ]},
-  { id:"arms", name:"Arms & Delts", short:"Arms", ex:[
-    { id:"ad-bayesian-cable-curls", n:"BayesianCableCurls",   sets:2, rmin:6, rmax:8,  p:"109 kg" },
-    { id:"ad-oh-triceps",           n:"OH Triceps",           sets:2, rmin:8, rmax:10, p:"149 kg" },
-    { id:"ad-mod-zottman-curl",     n:"ModZottmanCurl",       sets:1, rmin:8, rmax:10, p:"22 kg" },
-    { id:"ad-db-wrist-curl",        n:"DBWristCurl",          sets:2, rmin:8, rmax:10, p:"12 kg", retired:true },
-    { id:"ad-db-wrist-extension",   n:"DBWristExtension",     sets:2, rmin:8, rmax:10, p:"9 kg", retired:true },
-    { id:"ad-cable-triceps-kickbk", n:"CableTricepsKickback", sets:2, rmin:8, rmax:10, p:"53 kg" },
-    { id:"ad-alternating-db-curl",  n:"AlternatingDBCurl",    sets:1, rmin:6, rmax:8,  p:"20 kg" },
-    { id:"ad-machine-lateral-raise",n:"MachineLateralRaise",  sets:2, rmin:8, rmax:10, p:"50 kg" }
+  { id:"beine", name:"Beine", short:"Beine", ex:[
+    { id:"bn-beinpresse",        n:"Beinpresse",       sets:4, rmin:12, rmax:null, p:"" },
+    { id:"bn-deadlift",          n:"Deadlift",         sets:4, rmin:12, rmax:null, p:"" },
+    { id:"bn-split-squats",      n:"Split Squats",     sets:3, rmin:12, rmax:null, p:"" },
+    { id:"bn-beinstrecker",      n:"Beinstrecker",     sets:3, rmin:12, rmax:null, p:"" },
+    { id:"bn-hyperextensions",   n:"Hyperextensions",  sets:4, rmin:12, rmax:null, p:"" },
+    { id:"bn-bauch",             n:"Julias Bauchübung :)", sets:4, rmin:12, rmax:null, p:"" }
   ]}
 ];
 
@@ -795,7 +794,7 @@ function buildPlansAndPool(){
   BASE_DAYS.forEach(function(d){
     d.ex.forEach(function(e){ mergeIntoPool(e, d.id, MINMAX_PLAN_ID); });
   });
-  PLANS = [{ id:MINMAX_PLAN_ID, name:"MinMax Workout", builtin:true, days:BASE_DAYS.map(function(d){
+  PLANS = [{ id:MINMAX_PLAN_ID, name:"Julias Trainingsplan", builtin:true, days:BASE_DAYS.map(function(d){
     /* retired = aus dem Plan genommen. Die Übung bleibt im POOL, damit ihr
        bisheriger Verlauf lesbar und im Fortschritt abrufbar bleibt — sie
        steht nur nicht mehr im Trainingstag. */
